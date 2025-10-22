@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "backup": "powershell -ExecutionPolicy Bypass -File backup-project.ps1",
+    "backup:compress": "powershell -ExecutionPolicy Bypass -File backup-project.ps1 -Compress",
+    "save-version": "node save-version.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
