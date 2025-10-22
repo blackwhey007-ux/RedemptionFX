@@ -1,0 +1,51 @@
+<svg width="300" height="80" viewBox="0 0 300 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Red gradient for main text -->
+    <linearGradient id="redGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#DC2626;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#EF4444;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F87171;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Gold gradient for tagline -->
+    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#F59E0B;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#FBBF24;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FDE047;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Dark gradient for background -->
+    <linearGradient id="darkGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#000000;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1F2937;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Glow effect -->
+    <filter id="textGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="300" height="80" fill="url(#darkGradient)" rx="8"/>
+  
+  <!-- Main REDEMPTIONFX text -->
+  <text x="20" y="35" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="url(#redGradient)" filter="url(#textGlow)">REDEMPTIONFX</text>
+  
+  <!-- Tagline -->
+  <text x="20" y="55" font-family="Arial, sans-serif" font-size="12" font-weight="500" fill="url(#goldGradient)">© 2024 - Rise from Ashes to Gold</text>
+  
+  <!-- Decorative elements -->
+  <!-- Phoenix feather design -->
+  <path d="M220 15 L230 10 L240 20 L250 5 L260 15 L270 8" stroke="url(#goldGradient)" stroke-width="1.5" fill="none" opacity="0.6"/>
+  <path d="M225 25 L235 20 L245 30 L255 15 L265 25 L275 18" stroke="url(#redGradient)" stroke-width="1" fill="none" opacity="0.4"/>
+  
+  <!-- Small decorative dots -->
+  <circle cx="280" cy="20" r="1.5" fill="url(#goldGradient)" opacity="0.7"/>
+  <circle cx="285" cy="30" r="1" fill="url(#redGradient)" opacity="0.5"/>
+  <circle cx="282" cy="40" r="0.8" fill="url(#goldGradient)" opacity="0.6"/>
+</svg>

@@ -1,0 +1,219 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to get user role
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return getUserRole() == 'admin';
+    }
+    
+    // Helper function to check if user is VIP or admin
+    function isVIPOrAdmin() {
+      return getUserRole() in ['vip', 'admin'];
+    }
+    
+    // Users collection - users can read/write their own data, admins can manage all
+    match /users/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      // Admin can manage all users (update roles, status, etc.)
+      allow update: if request.auth != null && isAdmin();
+      allow delete: if request.auth != null && isAdmin();
+    }
+    
+    // Signals collection - role-based access
+    match /signals/{signalId} {
+      // Guests can only read free signals
+      allow read: if request.auth != null && 
+        getUserRole() == 'guest' && 
+        resource.data.category == 'free';
+      
+      // VIP and Admin can read all signals
+      allow read: if request.auth != null && isVIPOrAdmin();
+      
+      // Only admin can create/update/delete signals
+      allow write: if request.auth != null && isAdmin();
+    }
+    
+    // Signal notifications - role-based access
+    match /signalNotifications/{notificationId} {
+      // All authenticated users can read notifications
+      allow read: if request.auth != null;
+      
+      // Only admin can create notifications
+      allow create: if request.auth != null && isAdmin();
+      
+      // Users can update to mark as read
+      allow update: if request.auth != null && 
+        request.auth.uid in resource.data.readBy;
+    }
+    
+    // Profiles collection - multi-user profile access
+    match /profiles/{profileId} {
+      // Users can read their own profiles
+      allow read: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      
+      // Users can read public profiles (for VIP/Guest to view admin profiles)
+      allow read: if request.auth != null && 
+        resource.data.isPublic == true;
+      
+      // Admin can read all profiles
+      allow read: if request.auth != null && isAdmin();
+      
+      // Users can create their own profiles
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+      
+      // Users can update their own profiles
+      allow update: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      
+      // Users can delete their own profiles
+      allow delete: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      
+      // Admin can manage all profiles
+      allow write: if request.auth != null && isAdmin();
+    }
+    
+    // Trades collection - profile-based access
+    match /trades/{tradeId} {
+      // Users can read trades from their own profiles
+      allow read: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      
+      // Users can read trades from public profiles (for VIP/Guest to view admin trades)
+      allow read: if request.auth != null && 
+        exists(/databases/$(database)/documents/profiles/$(resource.data.profileId)) &&
+        get(/databases/$(database)/documents/profiles/$(resource.data.profileId)).data.isPublic == true;
+      
+      // Admin can read all trades
+      allow read: if request.auth != null && isAdmin();
+      
+      // Users can create trades in their own profiles
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId &&
+        exists(/databases/$(database)/documents/profiles/$(request.resource.data.profileId)) &&
+        get(/databases/$(database)/documents/profiles/$(request.resource.data.profileId)).data.userId == request.auth.uid;
+      
+      // Users can update their own trades
+      allow update: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      
+      // Users can delete their own trades
+      allow delete: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      
+      // Admin can manage all trades
+      allow write: if request.auth != null && isAdmin();
+    }
+    
+    // Legacy userTrades collection - users can manage their own trades
+    match /userTrades/{tradeId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+    }
+    
+    // Payment submissions - users can create, admins can read all
+    match /paymentSubmissions/{submissionId} {
+      allow read: if request.auth != null && isAdmin();
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+    }
+    
+    // Announcements - all authenticated users can read, only admin can write
+    match /announcements/{announcementId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin();
+    }
+    
+    // Analytics data - only admins can access
+    match /analytics/{document=**} {
+      allow read, write: if request.auth != null && isAdmin();
+    }
+    
+    // Performance data - only admins can access
+    match /performance/{document=**} {
+      allow read, write: if request.auth != null && isAdmin();
+    }
+    
+    // Settings - users can only access their own settings
+    match /settings/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Notifications - users can only access their own notifications
+    match /notifications/{notificationId} {
+      allow read, write: if request.auth != null && 
+        resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && 
+        request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Promotions collection - admin can manage, users can read all promotions
+    match /promotions/{promotionId} {
+      // Anyone can read promotions (we'll filter active ones in the application)
+      allow read: if request.auth != null;
+      
+      // Only admin can create/update/delete
+      allow write: if request.auth != null && isAdmin();
+    }
+    
+    // Events collection - admin can manage, users can read active events
+    match /events/{eventId} {
+      // All authenticated users can read active events
+      allow read: if request.auth != null && resource.data.isActive == true;
+      
+      // Admin can read all events (active and inactive)
+      allow read: if request.auth != null && isAdmin();
+      
+      // Only admin can create/update/delete events
+      allow write: if request.auth != null && isAdmin();
+    }
+    
+    // Event applications collection - users can create their own, admin can read all
+    match /event_applications/{applicationId} {
+      // Users can read their own applications
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      
+      // Admin can read all applications
+      allow read: if request.auth != null && isAdmin();
+      
+      // Users can create their own applications
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      
+      // Users can update their own applications (for cancellation)
+      allow update: if request.auth != null && request.auth.uid == resource.data.userId;
+      
+      // Admin can update any application (for approval/rejection)
+      allow update: if request.auth != null && isAdmin();
+      
+      // Only admin can delete applications
+      allow delete: if request.auth != null && isAdmin();
+    }
+    
+    // Admin notifications collection - admin only
+    match /admin_notifications/{notificationId} {
+      // Only admin can read notifications
+      allow read: if request.auth != null && isAdmin();
+      
+      // Only admin can create/update/delete notifications
+      allow write: if request.auth != null && isAdmin();
+    }
+    
+    // Default deny rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

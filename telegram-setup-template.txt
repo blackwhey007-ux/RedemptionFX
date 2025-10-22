@@ -1,0 +1,25 @@
+# Telegram Bot Configuration Template
+# Copy these variables to your .env.local file
+
+# Bot Token from @BotFather
+TELEGRAM_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+
+# Channel ID (for broadcasts) - Get from @userinfobot or channel settings
+# Format: @yourchannel or -1001234567890
+TELEGRAM_CHANNEL_ID=@yourchannel
+
+# Group ID (for discussions) - Get from @userinfobot or group settings  
+# Format: @yourgroup or -1001234567890
+TELEGRAM_GROUP_ID=@yourgroup
+
+# Feature flag to enable admin settings panel
+TELEGRAM_ADMIN_SETTINGS_ENABLED=true
+
+# Setup Instructions:
+# 1. Create a .env.local file in your project root
+# 2. Copy the variables above to .env.local
+# 3. Replace the placeholder values with your actual bot credentials
+# 4. Create a bot via @BotFather on Telegram
+# 5. Add the bot to your channel/group as administrator
+# 6. Get the channel/group ID using @userinfobot or other tools
+# 7. Configure the settings in the admin panel at /dashboard/admin/telegram-settings

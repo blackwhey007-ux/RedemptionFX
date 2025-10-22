@@ -1,0 +1,10 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/mt5-sync",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}
+
+

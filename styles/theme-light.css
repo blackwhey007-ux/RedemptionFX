@@ -1,0 +1,422 @@
+/**
+ * REDEMPTIONFX LIGHT THEME
+ * CSS Custom Properties for Light Mode
+ * Phoenix in Daylight - Golden Victory
+ */
+
+:root[data-theme="light"] {
+  /* ============================================
+     PRIMARY BRAND COLORS
+     ============================================ */
+  
+  /* Red - Main Brand Color (Phoenix Fire) */
+  --color-primary: #ef4444;
+  --color-primary-hover: #dc2626;
+  --color-primary-light: #ff6b6b;
+  --color-primary-dark: #b91c1c;
+  --color-primary-rgb: 239, 68, 68;
+  
+  /* Gold - Accent Color (King of Gold) */
+  --color-secondary: #d4af37;
+  --color-secondary-hover: #b8941f;
+  --color-secondary-light: #fde68a;
+  --color-secondary-dark: #a17c15;
+  --color-secondary-rgb: 212, 175, 55;
+  
+  /* ============================================
+     BACKGROUND COLORS
+     ============================================ */
+  
+  /* Pure white for primary background */
+  --bg-primary: #ffffff;
+  
+  /* Light gray for secondary surfaces */
+  --bg-secondary: #f9fafb;
+  
+  /* Light with red tint for cards */
+  --bg-card: #fff5f5;
+  
+  /* Elevated surfaces (modals, popovers) */
+  --bg-elevated: #fef2f2;
+  
+  /* Hover states */
+  --bg-hover: #fee2e2;
+  
+  /* Active/selected states */
+  --bg-active: #fecaca;
+  
+  /* Overlay for modals */
+  --bg-overlay: rgba(0, 0, 0, 0.5);
+  
+  /* Subtle background for inputs */
+  --bg-input: #fef8f8;
+  
+  /* Success background */
+  --bg-success: rgba(34, 197, 94, 0.1);
+  
+  /* Error background */
+  --bg-error: rgba(239, 68, 68, 0.1);
+  
+  /* Warning background */
+  --bg-warning: rgba(212, 175, 55, 0.1);
+  
+  /* Info background */
+  --bg-info: rgba(59, 130, 246, 0.1);
+  
+  /* ============================================
+     TEXT COLORS
+     ============================================ */
+  
+  /* Primary text - Pure black */
+  --text-primary: #000000;
+  
+  /* Secondary text - Dark gray */
+  --text-secondary: #4b5563;
+  
+  /* Muted text - Medium gray */
+  --text-muted: #6b7280;
+  
+  /* Disabled text - Light gray */
+  --text-disabled: #9ca3af;
+  
+  /* Inverted text (for dark backgrounds) */
+  --text-inverted: #ffffff;
+  
+  /* Link text */
+  --text-link: #ef4444;
+  --text-link-hover: #dc2626;
+  
+  /* Success text */
+  --text-success: #16a34a;
+  
+  /* Error text */
+  --text-error: #dc2626;
+  
+  /* Warning text */
+  --text-warning: #b8941f;
+  
+  /* Info text */
+  --text-info: #2563eb;
+  
+  /* ============================================
+     BORDER COLORS
+     ============================================ */
+  
+  /* Default border - Red with transparency */
+  --border-default: rgba(239, 68, 68, 0.2);
+  
+  /* Hover border - More opaque red */
+  --border-hover: rgba(239, 68, 68, 0.4);
+  
+  /* Active border - Solid red */
+  --border-active: #ef4444;
+  
+  /* Gold accent border */
+  --border-gold: rgba(212, 175, 55, 0.4);
+  
+  /* Subtle border */
+  --border-subtle: rgba(0, 0, 0, 0.1);
+  
+  /* Input border */
+  --border-input: rgba(239, 68, 68, 0.2);
+  
+  /* Focus border */
+  --border-focus: #d4af37;
+  
+  /* Error border */
+  --border-error: #ef4444;
+  
+  /* Success border */
+  --border-success: #22c55e;
+  
+  /* ============================================
+     SHADOW STYLES
+     ============================================ */
+  
+  /* Small shadow */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  
+  /* Medium shadow */
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  
+  /* Large shadow */
+  --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.15);
+  
+  /* Extra large shadow */
+  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.2);
+  
+  /* Gold glow shadow */
+  --shadow-glow: 0 0 20px rgba(212, 175, 55, 0.4);
+  
+  /* Strong gold glow */
+  --shadow-glow-strong: 0 0 40px rgba(212, 175, 55, 0.6);
+  
+  /* Inner shadow */
+  --shadow-inner: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  
+  /* Elevated shadow */
+  --shadow-elevated: 0 25px 50px rgba(0, 0, 0, 0.25);
+  
+  /* ============================================
+     GLASSMORPHISM STYLES
+     ============================================ */
+  
+  /* Glass background */
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  
+  /* Glass border */
+  --glass-border: rgba(239, 68, 68, 0.2);
+  
+  /* Glass blur amount */
+  --glass-blur: blur(10px);
+  
+  /* Strong glass effect */
+  --glass-bg-strong: rgba(255, 255, 255, 0.95);
+  --glass-blur-strong: blur(20px);
+  
+  /* Light glass effect */
+  --glass-bg-light: rgba(255, 255, 255, 0.6);
+  --glass-blur-light: blur(5px);
+  
+  /* ============================================
+     GRADIENT STYLES
+     ============================================ */
+  
+  /* Primary gradient (red) */
+  --gradient-primary: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  
+  /* Secondary gradient (gold) */
+  --gradient-secondary: linear-gradient(135deg, #d4af37 0%, #b8941f 100%);
+  
+  /* Mixed gradient (red to gold) */
+  --gradient-mixed: linear-gradient(135deg, #ef4444 0%, #d4af37 100%);
+  
+  /* Background gradient */
+  --gradient-bg: linear-gradient(135deg, #ffffff 0%, #fff5f5 50%, #ffffff 100%);
+  
+  /* Radial gradient (for effects) */
+  --gradient-radial: radial-gradient(circle at center, #ef4444 0%, transparent 70%);
+  
+  /* Gold radial gradient */
+  --gradient-radial-gold: radial-gradient(circle at center, #d4af37 0%, transparent 70%);
+  
+  /* Mesh gradient (complex background) */
+  --gradient-mesh: 
+    radial-gradient(at 0% 0%, rgba(239, 68, 68, 0.1) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(212, 175, 55, 0.1) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(239, 68, 68, 0.1) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(212, 175, 55, 0.1) 0px, transparent 50%);
+  
+  /* Success gradient */
+  --gradient-success: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  
+  /* Error gradient */
+  --gradient-error: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  
+  /* Warning gradient */
+  --gradient-warning: linear-gradient(135deg, #d4af37 0%, #b8941f 100%);
+  
+  /* ============================================
+     SPACING (Same as dark mode)
+     ============================================ */
+  
+  --space-0: 0;
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-12: 3rem;     /* 48px */
+  --space-16: 4rem;     /* 64px */
+  --space-20: 5rem;     /* 80px */
+  --space-24: 6rem;     /* 96px */
+  --space-32: 8rem;     /* 128px */
+  
+  /* ============================================
+     BORDER RADIUS (Same as dark mode)
+     ============================================ */
+  
+  --radius-none: 0;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-3xl: 32px;
+  --radius-full: 9999px;
+  
+  /* ============================================
+     TYPOGRAPHY (Same as dark mode)
+     ============================================ */
+  
+  /* Font Families */
+  --font-sans: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'Courier New', 'Consolas', 'Monaco', monospace;
+  --font-heading: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  
+  /* Font Sizes */
+  --text-xs: 0.75rem;     /* 12px */
+  --text-sm: 0.875rem;    /* 14px */
+  --text-base: 1rem;      /* 16px */
+  --text-lg: 1.125rem;    /* 18px */
+  --text-xl: 1.25rem;     /* 20px */
+  --text-2xl: 1.5rem;     /* 24px */
+  --text-3xl: 1.875rem;   /* 30px */
+  --text-4xl: 2.25rem;    /* 36px */
+  --text-5xl: 3rem;       /* 48px */
+  --text-6xl: 3.75rem;    /* 60px */
+  --text-7xl: 4.5rem;     /* 72px */
+  --text-8xl: 6rem;       /* 96px */
+  --text-9xl: 8rem;       /* 128px */
+  
+  /* Font Weights */
+  --font-thin: 100;
+  --font-extralight: 200;
+  --font-light: 300;
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  --font-extrabold: 800;
+  --font-black: 900;
+  
+  /* Line Heights */
+  --leading-none: 1;
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  --leading-loose: 2;
+  
+  /* Letter Spacing */
+  --tracking-tighter: -0.05em;
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.025em;
+  --tracking-wider: 0.05em;
+  --tracking-widest: 0.1em;
+  
+  /* ============================================
+     TRANSITION TIMINGS (Same as dark mode)
+     ============================================ */
+  
+  /* Durations */
+  --duration-75: 75ms;
+  --duration-100: 100ms;
+  --duration-150: 150ms;
+  --duration-200: 200ms;
+  --duration-300: 300ms;
+  --duration-500: 500ms;
+  --duration-700: 700ms;
+  --duration-1000: 1000ms;
+  
+  /* Easing Functions */
+  --ease-linear: linear;
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --ease-elastic: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  
+  /* Combined Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: 500ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  
+  /* ============================================
+     Z-INDEX LAYERS (Same as dark mode)
+     ============================================ */
+  
+  --z-base: 1;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-fixed: 300;
+  --z-modal-backdrop: 400;
+  --z-modal: 500;
+  --z-popover: 600;
+  --z-tooltip: 700;
+  --z-notification: 800;
+  --z-max: 999;
+  
+  /* ============================================
+     CONTAINER SIZES (Same as dark mode)
+     ============================================ */
+  
+  --container-xs: 480px;
+  --container-sm: 640px;
+  --container-md: 768px;
+  --container-lg: 1024px;
+  --container-xl: 1280px;
+  --container-2xl: 1536px;
+  
+  /* ============================================
+     OPACITY LEVELS (Same as dark mode)
+     ============================================ */
+  
+  --opacity-0: 0;
+  --opacity-10: 0.1;
+  --opacity-20: 0.2;
+  --opacity-30: 0.3;
+  --opacity-40: 0.4;
+  --opacity-50: 0.5;
+  --opacity-60: 0.6;
+  --opacity-70: 0.7;
+  --opacity-80: 0.8;
+  --opacity-90: 0.9;
+  --opacity-100: 1;
+  
+  /* ============================================
+     BLUR AMOUNTS (Same as dark mode)
+     ============================================ */
+  
+  --blur-none: 0;
+  --blur-sm: 4px;
+  --blur-md: 8px;
+  --blur-lg: 12px;
+  --blur-xl: 16px;
+  --blur-2xl: 24px;
+  --blur-3xl: 32px;
+  
+  /* ============================================
+     BACKDROP FILTER (Same as dark mode)
+     ============================================ */
+  
+  --backdrop-blur-sm: blur(4px);
+  --backdrop-blur-md: blur(8px);
+  --backdrop-blur-lg: blur(12px);
+  --backdrop-blur-xl: blur(16px);
+  
+  /* ============================================
+     SPECIAL EFFECTS
+     ============================================ */
+  
+  /* Phoenix fire glow (lighter for light mode) */
+  --effect-fire-glow: 
+    drop-shadow(0 0 10px rgba(239, 68, 68, 0.4))
+    drop-shadow(0 0 20px rgba(212, 175, 55, 0.3));
+  
+  /* Gold crown glow */
+  --effect-crown-glow: 
+    drop-shadow(0 0 10px rgba(212, 175, 55, 0.5))
+    drop-shadow(0 0 20px rgba(212, 175, 55, 0.2));
+  
+  /* Neon glow */
+  --effect-neon: 
+    drop-shadow(0 0 5px currentColor)
+    drop-shadow(0 0 10px currentColor)
+    drop-shadow(0 0 15px currentColor);
+  
+  /* 3D lift effect */
+  --effect-3d-lift: 
+    translateY(-5px) rotateX(2deg);
+  
+  /* 3D press effect */
+  --effect-3d-press: 
+    translateY(2px) scale(0.98);
+}
+
