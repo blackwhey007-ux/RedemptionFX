@@ -56,3 +56,4 @@ echo   git reset --hard ^<commit-hash^>
 echo   npm install
 echo.
 pause
+

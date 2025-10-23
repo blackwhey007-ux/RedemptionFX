@@ -6,8 +6,8 @@ import { AuthWrapper } from '@/components/auth-wrapper'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { ProfileProvider } from '@/contexts/ProfileContext'
-import { NotificationProvider } from '@/contexts/NotificationContext'
-import { SignalNotificationProvider } from '@/contexts/SignalNotificationContext'
+import { UnifiedNotificationProvider } from '@/contexts/UnifiedNotificationContext'
+import { NotificationPreferencesProvider } from '@/contexts/NotificationPreferencesContext'
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
@@ -24,8 +24,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <NotificationProvider userRole={user.role}>
-      <SignalNotificationProvider>
+    <NotificationPreferencesProvider>
+      <UnifiedNotificationProvider>
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-black dark:via-black dark:to-black transition-all duration-500">
           <Sidebar user={user} />
           <div className="md:ml-64 min-h-screen flex flex-col">
@@ -35,8 +35,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             </main>
           </div>
         </div>
-      </SignalNotificationProvider>
-    </NotificationProvider>
+      </UnifiedNotificationProvider>
+    </NotificationPreferencesProvider>
   )
 }
 

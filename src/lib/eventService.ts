@@ -21,7 +21,7 @@ import { Event, EventApplication, AdminEventNotification, EventType, Application
 
 const EVENTS_COLLECTION = 'events'
 const EVENT_APPLICATIONS_COLLECTION = 'event_applications'
-const ADMIN_NOTIFICATIONS_COLLECTION = 'admin_notifications'
+const ADMIN_NOTIFICATIONS_COLLECTION = 'eventNotifications'
 
 // Event CRUD Operations
 

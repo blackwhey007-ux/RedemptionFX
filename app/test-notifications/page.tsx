@@ -5,12 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { UserNotificationService } from '@/lib/userNotificationService'
 import { useAuth } from '@/contexts/AuthContext'
-import { useUserNotifications } from '@/contexts/UserNotificationContext'
+import { useUnifiedNotifications } from '@/contexts/UnifiedNotificationContext'
 import { toast } from 'sonner'
 
 export default function TestNotificationsPage() {
   const { user } = useAuth()
-  const { addNotification, playNotificationSound } = useUserNotifications()
+  const { addNotification, playNotificationSound } = useUnifiedNotifications()
 
   const testWelcomeNotification = async () => {
     if (!user) return

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { useUserNotifications } from '@/contexts/UserNotificationContext'
+import { useUnifiedNotifications } from '@/contexts/UnifiedNotificationContext'
 import { UserNotificationService } from '@/lib/userNotificationService'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 
 export default function DebugNotificationsPage() {
   const { user } = useAuth()
-  const { notifications, unreadCount, loading, addNotification } = useUserNotifications()
+  const { notifications, unreadCount, loading, addNotification } = useUnifiedNotifications()
   const [debugInfo, setDebugInfo] = useState<any>({})
 
   useEffect(() => {

@@ -46,11 +46,9 @@ import {
   getRecentMembers,
   Member 
 } from '@/lib/memberService'
-import { useNotifications } from '@/contexts/NotificationContext'
-import { UserNotificationService } from '@/lib/userNotificationService'
+import { NotificationService } from '@/lib/notificationService'
 
 export default function AdminMembersPage() {
-  const { markMemberAsApproved, clearApprovedMembers } = useNotifications()
   const [members, setMembers] = useState<Member[]>([])
   const [recentMembers, setRecentMembers] = useState<Member[]>([])
   const [filteredMembers, setFilteredMembers] = useState<Member[]>([])
@@ -147,13 +145,26 @@ export default function AdminMembersPage() {
       const member = members.find(m => m.uid === uid)
       if (member) {
         if (newRole === 'vip') {
-          await UserNotificationService.createVIPApprovalNotification(uid, member.displayName || member.email || 'User')
+          await NotificationService.createNotification({
+            userId: uid,
+            type: 'vip_approved',
+            title: 'VIP Access Approved!',
+            message: `Congratulations ${member.displayName || member.email || 'User'}! Your VIP membership has been approved. You now have access to live signals and exclusive features.`,
+            data: {
+              soundType: 'vip_approved',
+              actionUrl: '/dashboard/signals'
+            }
+          })
         } else if (newRole === 'guest') {
-          await UserNotificationService.createSystemNotification(
-            uid, 
-            'Account Status Updated', 
-            'Your account status has been updated. You now have guest access to our platform.'
-          )
+          await NotificationService.createNotification({
+            userId: uid,
+            type: 'system',
+            title: 'Account Status Updated',
+            message: 'Your account status has been updated. You now have guest access to our platform.',
+            data: {
+              soundType: 'default'
+            }
+          })
         }
       }
       

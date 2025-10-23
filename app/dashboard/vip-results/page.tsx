@@ -33,6 +33,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts'
 import { cn } from '@/lib/utils'
 import { Signal } from '@/types/signal'
+import { safeGetSignalResult } from '@/lib/signalService'
 
 interface SignalStats {
   totalSignals: number
@@ -103,14 +104,13 @@ const SignalCard = ({ signal, index }: { signal: Signal; index: number }) => {
   }
 
   const getResultPips = () => {
-    if (signal.result !== undefined && signal.result !== null) {
-      return signal.result > 0 ? `+${signal.result}` : `${signal.result}`
-    }
-    return '0'
+    const result = safeGetSignalResult(signal)
+    return result > 0 ? `+${result}` : `${result}`
   }
 
-  const isWin = signal.result !== undefined && signal.result !== null && signal.result > 0
-  const isLoss = signal.result !== undefined && signal.result !== null && signal.result < 0
+  const result = safeGetSignalResult(signal)
+  const isWin = result > 0
+  const isLoss = result < 0
 
   return (
     <div className="group relative">
@@ -197,6 +197,10 @@ interface CalendarDay {
   hasData: boolean
 }
 
+// CRITICAL: VIP Results Page - Pips Calculation
+// DO NOT modify pips calculations without testing VIP results page
+// This page displays total pips, monthly returns, and performance metrics
+// All pips calculations use safeGetSignalResult() utility for data integrity
 export default function VipResultsPage() {
   const [stats, setStats] = useState<SignalStats | null>(null)
   const [signals, setSignals] = useState<Signal[]>([])
@@ -218,15 +222,23 @@ export default function VipResultsPage() {
   const [touchEnd, setTouchEnd] = useState<number | null>(null)
   const [progress, setProgress] = useState(0)
 
-  // Calculation functions
+  // CRITICAL: Calculate monthly return for VIP results
+  // DO NOT modify without testing VIP results page
+  // Used in: Monthly Return stat card and hero section
   const calculateMonthlyReturn = (signals: Signal[]): number => {
     try {
       if (!signals || signals.length === 0) return 0
       
-      // Calculate total pips from completed signals
+      // Calculate total pips from completed signals using safe utility
       const totalPips = signals
-        .filter(signal => signal.result !== undefined && signal.result !== null)
-        .reduce((sum, signal) => sum + (signal.result || 0), 0)
+        .filter(signal => signal && signal.result !== undefined && signal.result !== null)
+        .reduce((sum, signal) => sum + safeGetSignalResult(signal), 0)
+      
+      console.log('VIP Results: Monthly return calculation:', { 
+        totalSignals: signals.length, 
+        completedSignals: signals.filter(s => s && s.result !== undefined && s.result !== null).length,
+        totalPips 
+      })
       
       return totalPips
     } catch (error) {
@@ -264,10 +276,13 @@ export default function VipResultsPage() {
     }
   }
 
+  // CRITICAL: Calculate daily pips for VIP results calendar
+  // DO NOT modify without testing VIP results page
+  // Used in: Performance calendar day cards
   const calculateDailyPips = (signals: Signal[]): number => {
     return signals
-      .filter(signal => signal.result !== undefined && signal.result !== null)
-      .reduce((sum, signal) => sum + (signal.result || 0), 0)
+      .filter(signal => signal && signal.result !== undefined && signal.result !== null)
+      .reduce((sum, signal) => sum + safeGetSignalResult(signal), 0)
   }
 
   // Removed profile loading - VIP Results now shows signals only
@@ -311,6 +326,9 @@ export default function VipResultsPage() {
     }
   }
 
+  // CRITICAL: Calculate this week's pips for VIP results
+  // DO NOT modify without testing VIP results page
+  // Used in: This Week's Pips stat card
   const calculateThisWeekPips = (signals: Signal[]): number => {
     try {
       if (!signals || signals.length === 0) return 0
@@ -323,7 +341,7 @@ export default function VipResultsPage() {
           const signalDate = new Date(signal.postedAt)
           return !isNaN(signalDate.getTime()) && signalDate >= oneWeekAgo
         })
-        .reduce((sum, signal) => sum + (signal.result || 0), 0)
+        .reduce((sum, signal) => sum + safeGetSignalResult(signal), 0)
     } catch (error) {
       console.error('Error calculating this week pips:', error)
       return 0
@@ -495,7 +513,7 @@ export default function VipResultsPage() {
             }
           }
           
-          days[dateKey].pips += (signal.result || 0)
+          days[dateKey].pips += safeGetSignalResult(signal)
           days[dateKey].signals++
           days[dateKey].signalsList.push(signal)
           
@@ -792,13 +810,15 @@ export default function VipResultsPage() {
     return 'text-gray-600 dark:text-gray-400'
   }
 
-  // Chart data preparation
+  // CRITICAL: Chart data preparation for VIP results equity curve
+  // DO NOT modify without testing VIP results page
+  // Used in: Equity curve chart
   const equityData = signals
-    .filter(signal => signal.result !== undefined && signal.result !== null)
+    .filter(signal => signal && signal.result !== undefined && signal.result !== null)
     .sort((a, b) => new Date(a.postedAt).getTime() - new Date(b.postedAt).getTime())
     .reduce((acc, signal, index) => {
       const previousEquity = acc[acc.length - 1]?.equity || 0
-      const newEquity = previousEquity + (signal.result || 0)
+      const newEquity = previousEquity + safeGetSignalResult(signal)
       acc.push({
         date: new Date(signal.postedAt).toLocaleDateString(),
         equity: newEquity,
@@ -1140,7 +1160,7 @@ export default function VipResultsPage() {
               </div>
               <div>
                 <div className="text-2xl font-bold text-green-400">
-                  {topWinningSignals.reduce((sum, signal) => sum + (signal.result || 0), 0)}
+                  {topWinningSignals.reduce((sum, signal) => sum + safeGetSignalResult(signal), 0)}
                 </div>
                 <div className="text-xs text-gray-300">Total Pips</div>
               </div>
@@ -1325,9 +1345,9 @@ export default function VipResultsPage() {
           {(() => {
             const selectedMonthSignals = getSignalsForSelectedMonth(signals, selectedMonth, selectedYear)
             const selectedMonthDailySignals = groupSignalsByDay(selectedMonthSignals)
-            const totalPips = selectedMonthSignals.reduce((sum, signal) => sum + (signal.result || 0), 0)
-            const winningSignals = selectedMonthSignals.filter(signal => (signal.result || 0) > 0).length
-            const losingSignals = selectedMonthSignals.filter(signal => (signal.result || 0) < 0).length
+            const totalPips = selectedMonthSignals.reduce((sum, signal) => sum + safeGetSignalResult(signal), 0)
+            const winningSignals = selectedMonthSignals.filter(signal => safeGetSignalResult(signal) > 0).length
+            const losingSignals = selectedMonthSignals.filter(signal => safeGetSignalResult(signal) < 0).length
             
             return (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1508,8 +1528,8 @@ export default function VipResultsPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={`font-medium ${getProfitColor(signal.result || 0)}`}>
-                        {signal.result !== undefined && signal.result !== null ? `${signal.result} pips` : 'Pending'}
+                      <div className={`font-medium ${getProfitColor(safeGetSignalResult(signal))}`}>
+                        {signal.result !== undefined && signal.result !== null ? `${safeGetSignalResult(signal)} pips` : 'Pending'}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {signal.title}

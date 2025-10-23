@@ -76,6 +76,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
             await setDoc(userDocRef, newUserData)
             userRole = 'guest'
             isAdmin = false
+            
+            // Create admin notification for new member registration
+            try {
+              const { NotificationService } = await import('@/lib/notificationService')
+              await NotificationService.createNotification({
+                type: 'new_member',
+                title: 'New Member Registration',
+                message: `${firebaseUser.displayName || firebaseUser.email} has registered`,
+                memberName: firebaseUser.displayName || firebaseUser.email,
+                memberEmail: firebaseUser.email,
+                memberId: firebaseUser.uid
+              })
+              console.log('🔔 Admin notification created for new member:', firebaseUser.email)
+            } catch (notificationError) {
+              console.error('Error creating admin notification for new member:', notificationError)
+              // Don't fail user creation if notification fails
+            }
           }
 
           // Double-check admin status by email
@@ -93,7 +110,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             expiresAt: userData.paymentInfo.expiresAt?.toDate?.() || userData.paymentInfo.expiresAt || undefined
           } : undefined
           
-          setUser({
+          const authUser = {
             uid: firebaseUser.uid,
             email: firebaseUser.email,
             displayName: firebaseUser.displayName,
@@ -102,7 +119,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
             isAdmin,
             status: userData.status || 'active',
             paymentInfo: safePaymentInfo
+          }
+          
+          console.log('🔐 AuthContext: User authenticated with role:', {
+            uid: authUser.uid,
+            email: authUser.email,
+            role: authUser.role,
+            isAdmin: authUser.isAdmin
           })
+          
+          setUser(authUser)
         } else {
           setUser(null)
         }

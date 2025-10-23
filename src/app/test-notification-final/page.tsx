@@ -4,13 +4,15 @@ import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { UserNotificationService } from '@/lib/userNotificationService'
+import { NotificationService } from '@/lib/notificationService'
 import { useAuth } from '@/contexts/AuthContext'
-import { useUserNotifications } from '@/contexts/UserNotificationContext'
+import { useUnifiedNotifications } from '@/contexts/UnifiedNotificationContext'
 import { toast } from 'sonner'
 
 export default function TestNotificationFinalPage() {
   const { user } = useAuth()
-  const { notifications, unreadCount, playNotificationSound } = useUserNotifications()
+  const { notifications, stats } = useUnifiedNotifications()
+  const unreadCount = stats?.unread || 0
   const [loading, setLoading] = useState(false)
 
   const testPromotionNotification = async () => {
@@ -81,6 +83,88 @@ export default function TestNotificationFinalPage() {
     }
   }
 
+  const testAdminNotification = async () => {
+    if (!user?.isAdmin) {
+      toast.error('Only admins can test admin notifications')
+      return
+    }
+
+    setLoading(true)
+    try {
+      await NotificationService.createNotification({
+        type: 'new_member',
+        title: 'Test Admin Notification',
+        message: 'This is a test admin notification to verify the system works correctly.',
+        memberName: 'Test Member',
+        memberEmail: 'test@example.com',
+        memberId: 'test-member-id'
+      })
+      toast.success('Admin notification sent!')
+    } catch (error) {
+      console.error('Error sending admin notification:', error)
+      toast.error('Failed to send admin notification.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const testSignalNotification = async () => {
+    if (!user?.isAdmin) {
+      toast.error('Only admins can test signal notifications')
+      return
+    }
+
+    setLoading(true)
+    try {
+      await NotificationService.createNotification({
+        signalId: 'test-signal-' + Date.now(),
+        signalTitle: 'Test Signal',
+        signalCategory: 'free',
+        sentTo: 'all',
+        message: '🔔 New FREE Signal: EURUSD BUY @ 1.0850'
+      })
+      toast.success('Signal notification sent!')
+    } catch (error) {
+      console.error('Error sending signal notification:', error)
+      toast.error('Failed to send signal notification.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const playNotificationSound = (type: string) => {
+    // Simple sound notification using Web Audio API
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const oscillator = audioContext.createOscillator()
+      const gainNode = audioContext.createGain()
+      
+      oscillator.connect(gainNode)
+      gainNode.connect(audioContext.destination)
+      
+      // Different frequencies for different types
+      const frequencies = {
+        default: 800,
+        success: 1000,
+        warning: 600,
+        info: 400,
+        vip_approved: 1200,
+        promotion: 900
+      }
+      
+      oscillator.frequency.setValueAtTime(frequencies[type as keyof typeof frequencies] || 800, audioContext.currentTime)
+      oscillator.type = 'sine'
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5)
+      
+      oscillator.start(audioContext.currentTime)
+      oscillator.stop(audioContext.currentTime + 0.5)
+    } catch (error) {
+      console.error('Error playing notification sound:', error)
+    }
+  }
+
   const testSoundNotification = (type: string) => {
     playNotificationSound(type)
     toast.success(`Playing ${type} sound notification`)
@@ -105,7 +189,7 @@ export default function TestNotificationFinalPage() {
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Notification Tests</h3>
+            <h3 className="text-lg font-semibold">User Notification Tests</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Button onClick={testPromotionNotification} className="w-full" disabled={loading}>
                 {loading ? 'Sending...' : 'Test Promotion Notification'}
@@ -118,6 +202,20 @@ export default function TestNotificationFinalPage() {
               </Button>
             </div>
           </div>
+
+          {user?.isAdmin && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Admin Notification Tests</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Button onClick={testAdminNotification} className="w-full" disabled={loading}>
+                  {loading ? 'Sending...' : 'Test Admin Notification'}
+                </Button>
+                <Button onClick={testSignalNotification} className="w-full" disabled={loading}>
+                  {loading ? 'Sending...' : 'Test Signal Notification'}
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Sound Tests</h3>

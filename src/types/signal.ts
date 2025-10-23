@@ -37,4 +37,14 @@ export interface SignalNotification {
   createdAt: Date
   readBy: string[] // Array of user IDs who have read this notification
   sentTo: 'all' | 'vip' | 'free' // Who should receive this notification
+  signalData?: {
+    pair: string
+    type: 'BUY' | 'SELL'
+    entryPrice: number
+    stopLoss: number
+    takeProfit1: number
+    takeProfit2?: number
+    description?: string
+    notes?: string
+  }
 }

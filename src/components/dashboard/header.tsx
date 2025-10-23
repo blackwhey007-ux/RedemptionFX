@@ -1,13 +1,11 @@
 'use client'
 
 import { signOutUser } from '@/lib/firebaseAuth'
-import { Bell, LogOut, User, Crown, Star, Eye, Settings, Mail, Users, AlertCircle, CheckCircle, Clock } from 'lucide-react'
+import { LogOut, User, Crown, Star, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { useRouter } from 'next/navigation'
-import { useNotifications } from '@/contexts/NotificationContext'
-import { useSignalNotifications } from '@/contexts/SignalNotificationContext'
 import { NotificationBell } from '@/components/notifications/notification-bell'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { RedemptionLogo } from '@/components/ui/redemption-logo'
@@ -19,8 +17,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { formatDistanceToNow } from 'date-fns'
 
 interface HeaderProps {
   user: {
@@ -42,8 +38,6 @@ interface HeaderProps {
 
 export function Header({ user }: HeaderProps) {
   const router = useRouter()
-  const { unreadCount, newMemberCount, notifications, markAsRead, markMemberAsApproved } = useNotifications()
-  const { unreadCount: signalUnreadCount, notifications: signalNotifications, markAsRead: markSignalAsRead } = useSignalNotifications()
 
   const handleSignOut = async () => {
     const result = await signOutUser()
@@ -105,189 +99,12 @@ export function Header({ user }: HeaderProps) {
           {/* Theme Toggle */}
           <ThemeToggle />
           
-          {/* Notifications Dropdown */}
-          {user.role === 'admin' && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="relative text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-300"
-                >
-                  <Bell className="h-5 w-5" />
-                  {/* Notification badge */}
-                  {(unreadCount > 0 || newMemberCount > 0) && (
-                    <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
-                      {newMemberCount > 0 ? newMemberCount : unreadCount}
-                    </span>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-80" align="end">
-                <DropdownMenuLabel className="flex items-center justify-between">
-                  <span className="flex items-center space-x-2">
-                    <Bell className="h-4 w-4" />
-                    <span>Notifications</span>
-                  </span>
-                  {newMemberCount > 0 && (
-                    <Badge variant="destructive" className="h-5 text-xs">
-                      {newMemberCount} new
-                    </Badge>
-                  )}
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                
-                <ScrollArea className="h-64">
-                  {notifications.length === 0 ? (
-                    <div className="p-4 text-center text-slate-500 dark:text-slate-400">
-                      <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No new notifications</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      {notifications.slice(0, 10).map((notification) => (
-                        <DropdownMenuItem 
-                          key={notification.id}
-                          className="flex items-start space-x-3 p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
-                          onClick={() => {
-                            markAsRead(notification.id)
-                            if (notification.type === 'new_member') {
-                              markMemberAsApproved(notification.memberId)
-                            }
-                          }}
-                        >
-                          <div className="flex-shrink-0 mt-1">
-                            {notification.type === 'new_member' ? (
-                              <Users className="h-4 w-4 text-blue-500" />
-                            ) : (
-                              <AlertCircle className="h-4 w-4 text-orange-500" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
-                              {notification.title}
-                            </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                              {notification.message}
-                            </p>
-                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                              Just now
-                            </p>
-                          </div>
-                          {!notification.read && (
-                            <div className="flex-shrink-0">
-                              <div className="h-2 w-2 bg-red-500 rounded-full"></div>
-                            </div>
-                          )}
-                        </DropdownMenuItem>
-                      ))}
-                    </div>
-                  )}
-                </ScrollArea>
-                
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  className="flex items-center space-x-2 cursor-pointer text-blue-600 dark:text-blue-400"
-                  onClick={() => router.push('/dashboard/admin/members')}
-                >
-                  <Users className="h-4 w-4" />
-                  <span>View All Members</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          {/* User Notifications for VIP/Guest */}
-          {(user.role === 'vip' || user.role === 'guest') && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className={`relative text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-300 ${
-                    signalUnreadCount > 0 ? 'animate-pulse' : ''
-                  }`}
-                >
-                  <Bell className="h-5 w-5" />
-                  {/* Signal notification badge */}
-                  {signalUnreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold animate-bounce">
-                      {signalUnreadCount}
-                    </span>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-80" align="end">
-                <DropdownMenuLabel className="flex items-center justify-between">
-                  <span className="flex items-center space-x-2">
-                    <Bell className="h-4 w-4" />
-                    <span>Signal Notifications</span>
-                  </span>
-                  {signalUnreadCount > 0 && (
-                    <Badge variant="destructive" className="h-5 text-xs">
-                      {signalUnreadCount} new
-                    </Badge>
-                  )}
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                
-                <ScrollArea className="h-64">
-                  {signalNotifications.length === 0 ? (
-                    <div className="p-4 text-center text-slate-500 dark:text-slate-400">
-                      <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No signal notifications</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      {signalNotifications.slice(0, 10).map((notification) => (
-                        <DropdownMenuItem 
-                          key={notification.id}
-                          className="flex items-start space-x-3 p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
-                          onClick={() => {
-                            markSignalAsRead(notification.id)
-                            if (notification.signalCategory === 'free') {
-                              router.push('/dashboard/signals/free')
-                            } else if (notification.signalCategory === 'vip') {
-                              router.push('/dashboard/signals/vip')
-                            }
-                          }}
-                        >
-                          <div className="flex-shrink-0 mt-1">
-                            <Bell className="h-4 w-4 text-blue-500" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
-                              {notification.signalTitle}
-                            </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                              {notification.message}
-                            </p>
-                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                              {formatDistanceToNow(notification.createdAt, { addSuffix: true })}
-                            </p>
-                          </div>
-                          {!notification.readBy.includes(user.uid) && (
-                            <div className="flex-shrink-0">
-                              <div className="h-2 w-2 bg-red-500 rounded-full"></div>
-                            </div>
-                          )}
-                        </DropdownMenuItem>
-                      ))}
-                    </div>
-                  )}
-                </ScrollArea>
-                
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  className="flex items-center space-x-2 cursor-pointer text-blue-600 dark:text-blue-400"
-                  onClick={() => router.push('/dashboard/signals')}
-                >
-                  <Bell className="h-4 w-4" />
-                  <span>View All Signals</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          {/* Unified Notifications for All Users */}
+          <NotificationBell 
+            className="text-red-400 hover:text-red-600 dark:hover:text-red-300"
+            maxNotifications={10}
+            showSettings={true}
+          />
           
           {/* Profile Dropdown */}
           <DropdownMenu>

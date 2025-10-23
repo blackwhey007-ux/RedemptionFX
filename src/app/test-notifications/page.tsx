@@ -3,73 +3,111 @@
 import React from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { UserNotificationService } from '@/lib/userNotificationService'
+import { NotificationService } from '@/lib/notificationService'
 import { useAuth } from '@/contexts/AuthContext'
-import { useUserNotifications } from '@/contexts/UserNotificationContext'
+import { useUnifiedNotifications } from '@/contexts/UnifiedNotificationContext'
 import { toast } from 'sonner'
 
 export default function TestNotificationsPage() {
   const { user } = useAuth()
-  const { addNotification, playNotificationSound } = useUserNotifications()
+  const { refreshNotifications } = useUnifiedNotifications()
 
   const testWelcomeNotification = async () => {
     if (!user) return
     
-    await UserNotificationService.createWelcomeNotification(
-      user.uid, 
-      user.displayName || 'Test User'
-    )
+    await NotificationService.createNotification({
+      userId: user.uid,
+      type: 'welcome',
+      title: 'Welcome to RedemptionFX!',
+      message: `Welcome ${user.displayName || 'Test User'}! You now have access to our VIP trading signals and exclusive features.`,
+      data: {
+        soundType: 'success',
+        actionUrl: '/dashboard'
+      }
+    })
     toast.success('Welcome notification sent!')
+    refreshNotifications()
   }
 
   const testVIPApprovalNotification = async () => {
     if (!user) return
     
-    await UserNotificationService.createVIPApprovalNotification(
-      user.uid, 
-      user.displayName || 'Test User'
-    )
+    await NotificationService.createNotification({
+      userId: user.uid,
+      type: 'vip_approved',
+      title: 'VIP Access Approved!',
+      message: `Congratulations ${user.displayName || 'Test User'}! Your VIP membership has been approved. You now have access to live signals and exclusive features.`,
+      data: {
+        soundType: 'vip_approved',
+        actionUrl: '/dashboard/signals'
+      }
+    })
     toast.success('VIP approval notification sent!')
+    refreshNotifications()
   }
 
   const testPromotionNotification = async () => {
     if (!user) return
     
-    await UserNotificationService.createPromotionNotification(
-      user.uid,
-      {
-        title: 'Test Promotion',
-        message: 'This is a test promotion notification',
-        id: 'test-promo'
+    await NotificationService.createNotification({
+      userId: user.uid,
+      type: 'promotion',
+      title: 'New Promotion Available!',
+      message: 'Check out our latest promotion: Test Promotion',
+      data: {
+        promotionId: 'test-promo',
+        soundType: 'promotion',
+        actionUrl: '/dashboard'
       }
-    )
+    })
     toast.success('Promotion notification sent!')
+    refreshNotifications()
   }
 
   const testAnnouncementNotification = async () => {
     if (!user) return
     
-    await UserNotificationService.createAnnouncementNotification(
-      user.uid,
-      'System Announcement',
-      'This is a test announcement notification'
-    )
+    await NotificationService.createNotification({
+      userId: user.uid,
+      type: 'announcement',
+      title: 'System Announcement',
+      message: 'This is a test announcement notification',
+      data: {
+        soundType: 'info'
+      }
+    })
     toast.success('Announcement notification sent!')
+    refreshNotifications()
   }
 
   const testPaymentReminderNotification = async () => {
     if (!user) return
     
-    await UserNotificationService.createPaymentReminderNotification(
-      user.uid,
-      7
-    )
+    await NotificationService.createNotification({
+      userId: user.uid,
+      type: 'payment_reminder',
+      title: 'Payment Reminder',
+      message: 'Your VIP subscription expires in 7 days. Please renew to continue enjoying our services.',
+      data: {
+        soundType: 'warning',
+        actionUrl: '/upgrade'
+      }
+    })
     toast.success('Payment reminder notification sent!')
+    refreshNotifications()
   }
 
-  const testSoundNotification = (type: string) => {
-    playNotificationSound(type)
-    toast.success(`Playing ${type} sound notification`)
+  const testSoundNotification = async (type: string) => {
+    try {
+      const { notificationSoundManager } = await import('@/lib/notificationSoundManager')
+      await notificationSoundManager.playNotificationSound(
+        { soundEnabled: true, soundType: 'default', volume: 0.7, vibrationEnabled: false, browserNotificationsEnabled: false, doNotDisturb: false, notificationTypes: { signals: true, promotions: true, system: true, vip: true, admin: false } },
+        type
+      )
+      toast.success(`Playing ${type} sound notification`)
+    } catch (error) {
+      toast.error('Failed to play sound')
+    }
   }
 
   if (!user) {

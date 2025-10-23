@@ -4,12 +4,12 @@ import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/contexts/AuthContext'
-import { useUserNotifications } from '@/contexts/UserNotificationContext'
+import { useUnifiedNotifications } from '@/contexts/UnifiedNotificationContext'
 import { toast } from 'sonner'
 
 export default function TestNotificationSimplePage() {
   const { user } = useAuth()
-  const { notifications, unreadCount, loading, addNotification, playNotificationSound } = useUserNotifications()
+  const { notifications, unreadCount, loading, addNotification, playNotificationSound } = useUnifiedNotifications()
   const [testMessage, setTestMessage] = useState('')
 
   const testDirectNotification = async () => {

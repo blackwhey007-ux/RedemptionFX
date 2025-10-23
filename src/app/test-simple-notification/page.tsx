@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { useUserNotifications } from '@/contexts/UserNotificationContext'
+import { useUnifiedNotifications } from '@/contexts/UnifiedNotificationContext'
 import { UserNotificationService } from '@/lib/userNotificationService'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/badge'
 
 export default function TestSimpleNotificationPage() {
   const { user } = useAuth()
-  const { notifications, unreadCount, loading, addNotification } = useUserNotifications()
+  const { notifications, stats, loading } = useUnifiedNotifications()
+  const unreadCount = stats?.unread || 0
   const [testResults, setTestResults] = useState<string[]>([])
 
   const addResult = (result: string) => {

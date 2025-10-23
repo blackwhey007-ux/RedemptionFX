@@ -210,6 +210,13 @@ export function Sidebar({ user }: SidebarProps) {
             icon: Bot,
             href: '/dashboard/admin/telegram-settings',
             description: 'Configure Telegram Bot Integration'
+          },
+          {
+            id: 'test-notifications',
+            title: 'Test Notifications',
+            icon: Activity,
+            href: '/dashboard/admin/test-notifications',
+            description: 'Test Notification System'
           }
         ]
       })

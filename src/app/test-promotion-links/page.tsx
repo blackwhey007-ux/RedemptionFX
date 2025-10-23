@@ -5,12 +5,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { UserNotificationService } from '@/lib/userNotificationService'
 import { useAuth } from '@/contexts/AuthContext'
-import { useUserNotifications } from '@/contexts/UserNotificationContext'
+import { useUnifiedNotifications } from '@/contexts/UnifiedNotificationContext'
 import { toast } from 'sonner'
 
 export default function TestPromotionLinksPage() {
   const { user } = useAuth()
-  const { notifications, unreadCount, playNotificationSound } = useUserNotifications()
+  const { notifications, stats } = useUnifiedNotifications()
+  const unreadCount = stats?.unread || 0
   const [loading, setLoading] = useState(false)
 
   const testInternalLinkNotification = async () => {

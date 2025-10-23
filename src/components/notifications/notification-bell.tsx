@@ -1,64 +1,45 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Bell, Check, X, ExternalLink, ArrowRight, Gift, Users, AlertCircle, Info, CheckCircle } from 'lucide-react'
+import { Bell, Check, X, ExternalLink, ArrowRight, Gift, Users, AlertCircle, Info, CheckCircle, Settings, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import { useUserNotifications, UserNotification } from '@/contexts/UserNotificationContext'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
+import { useUnifiedNotifications } from '@/contexts/UnifiedNotificationContext'
+import { NotificationItem } from './notification-item'
 import { formatDistanceToNow } from 'date-fns'
-
-const getNotificationIcon = (type: UserNotification['type']) => {
-  switch (type) {
-    case 'welcome':
-      return <CheckCircle className="w-4 h-4 text-green-500" />
-    case 'vip_approved':
-      return <Users className="w-4 h-4 text-blue-500" />
-    case 'promotion':
-      return <Gift className="w-4 h-4 text-yellow-500" />
-    case 'announcement':
-      return <AlertCircle className="w-4 h-4 text-orange-500" />
-    case 'system':
-      return <Info className="w-4 h-4 text-gray-500" />
-    case 'payment_reminder':
-      return <AlertCircle className="w-4 h-4 text-red-500" />
-    default:
-      return <Bell className="w-4 h-4 text-gray-500" />
-  }
-}
-
-const getNotificationColor = (type: UserNotification['type']) => {
-  switch (type) {
-    case 'welcome':
-      return 'border-l-green-500 bg-green-50 dark:bg-green-900/10'
-    case 'vip_approved':
-      return 'border-l-blue-500 bg-blue-50 dark:bg-blue-900/10'
-    case 'promotion':
-      return 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-900/10'
-    case 'announcement':
-      return 'border-l-orange-500 bg-orange-50 dark:bg-orange-900/10'
-    case 'system':
-      return 'border-l-gray-500 bg-gray-50 dark:bg-gray-900/10'
-    case 'payment_reminder':
-      return 'border-l-red-500 bg-red-50 dark:bg-red-900/10'
-    default:
-      return 'border-l-gray-500 bg-gray-50 dark:bg-gray-900/10'
-  }
-}
 
 interface NotificationBellProps {
   className?: string
+  maxNotifications?: number
+  showSettings?: boolean
 }
 
-export function NotificationBell({ className }: NotificationBellProps) {
-  const { notifications, unreadCount, markAsRead, markAllAsRead, loading } = useUserNotifications()
+export function NotificationBell({ 
+  className, 
+  maxNotifications = 10,
+  showSettings = true 
+}: NotificationBellProps) {
+  const { 
+    notifications, 
+    stats, 
+    loading, 
+    error,
+    markAsRead, 
+    markAllAsRead, 
+    refreshNotifications,
+    clearError
+  } = useUnifiedNotifications()
+  
   const [isOpen, setIsOpen] = useState(false)
 
-  const handleNotificationClick = async (notification: UserNotification) => {
+  const handleNotificationClick = async (notification: any) => {
     if (!notification.read) {
-      await markAsRead(notification.id)
+      const notificationType = getNotificationType(notification)
+      await markAsRead(notification.id, notificationType)
     }
     
     // Handle action URL if present
@@ -78,31 +59,68 @@ export function NotificationBell({ className }: NotificationBellProps) {
     }
   }
 
+  const getNotificationType = (notification: any): string => {
+    if ('userId' in notification) return 'user'
+    if ('signalId' in notification) return 'signal'
+    if ('eventId' in notification) return 'event'
+    return 'admin'
+  }
+
   const handleMarkAllAsRead = async () => {
     await markAllAsRead()
   }
 
-  const recentNotifications = notifications.slice(0, 10) // Show only last 10 notifications
+  const recentNotifications = notifications.slice(0, maxNotifications)
+  const unreadCount = stats?.unread || 0
 
   return (
     <div className={`relative ${className}`}>
       {/* Notification Bell Button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 hover:bg-slate-100 dark:hover:bg-slate-800"
-      >
-        <Bell className="w-5 h-5" />
-        {unreadCount > 0 && (
-          <Badge 
-            variant="destructive" 
-            className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
-          >
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </Badge>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setIsOpen(!isOpen)}
+          className="relative p-2 hover:bg-slate-100 dark:hover:bg-slate-800"
+        >
+          <Bell className="w-5 h-5" />
+          {unreadCount > 0 && (
+            <Badge 
+              variant="destructive" 
+              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+            >
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </Badge>
+          )}
+        </Button>
+
+        {showSettings && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="p-2">
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={refreshNotifications}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.location.href = '/dashboard/settings'}>
+                <Settings className="w-4 h-4 mr-2" />
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {unreadCount > 0 && (
+                <DropdownMenuItem onClick={handleMarkAllAsRead}>
+                  <Check className="w-4 h-4 mr-2" />
+                  Mark all as read
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
-      </Button>
+      </div>
 
       {/* Notification Dropdown */}
       {isOpen && (
@@ -114,7 +132,7 @@ export function NotificationBell({ className }: NotificationBellProps) {
           />
           
           {/* Dropdown Content */}
-          <div className="absolute right-0 top-12 z-[9999] w-80 max-h-96 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-2xl overflow-hidden">
+          <div className="absolute right-0 top-12 z-[9999] w-96 max-h-[500px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-2xl overflow-hidden">
             <Card className="border-0 shadow-none">
               <CardHeader className="pb-3 px-4 pt-4">
                 <div className="flex items-center justify-between">
@@ -146,13 +164,27 @@ export function NotificationBell({ className }: NotificationBellProps) {
                     {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
                   </CardDescription>
                 )}
+                {error && (
+                  <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-600 dark:text-red-400">
+                    {error}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearError}
+                      className="ml-2 h-auto p-0 text-red-600 hover:text-red-700"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
               </CardHeader>
 
               <CardContent className="p-0">
                 <ScrollArea className="h-80 w-full">
-                  {loading ? (
+                  {loading && recentNotifications.length === 0 ? (
                     <div className="p-4 text-center text-slate-500">
-                      Loading notifications...
+                      <RefreshCw className="w-8 h-8 mx-auto mb-2 animate-spin" />
+                      <p>Loading notifications...</p>
                     </div>
                   ) : recentNotifications.length === 0 ? (
                     <div className="p-4 text-center text-slate-500">
@@ -163,45 +195,16 @@ export function NotificationBell({ className }: NotificationBellProps) {
                     <div className="space-y-0">
                       {recentNotifications.map((notification, index) => (
                         <div key={notification.id}>
-                          <div
-                            onClick={() => handleNotificationClick(notification)}
-                            className={`p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-l-4 ${getNotificationColor(notification.type)} ${
-                              !notification.read ? 'font-medium' : 'opacity-75'
-                            }`}
-                          >
-                            <div className="flex items-start gap-3">
-                              <div className="flex-shrink-0 mt-0.5">
-                                {getNotificationIcon(notification.type)}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between">
-                                  <h4 className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                                    {notification.title}
-                                  </h4>
-                                  {!notification.read && (
-                                    <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" />
-                                  )}
-                                </div>
-                                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
-                                  {notification.message}
-                                </p>
-                                <div className="flex items-center justify-between mt-2">
-                                  <span className="text-xs text-slate-500">
-                                    {formatDistanceToNow(notification.createdAt.toDate(), { addSuffix: true })}
-                                  </span>
-                                  {notification.data?.actionUrl && (
-                                    notification.data.actionUrl.startsWith('http') ? (
-                                      <ExternalLink className="w-3 h-3 text-slate-400" />
-                                    ) : (
-                                      <ArrowRight className="w-3 h-3 text-slate-400" />
-                                    )
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+                          <NotificationItem
+                            notification={notification}
+                            onMarkAsRead={markAsRead}
+                            onDelete={() => {}}
+                            onActionClick={handleNotificationClick}
+                            showActions={false}
+                            compact={true}
+                          />
                           {index < recentNotifications.length - 1 && (
-                            <Separator className="mx-3" />
+                            <Separator className="mx-4" />
                           )}
                         </div>
                       ))}

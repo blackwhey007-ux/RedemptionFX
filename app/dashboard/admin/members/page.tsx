@@ -46,11 +46,9 @@ import {
   getRecentMembers,
   Member 
 } from '@/lib/memberService'
-import { useNotifications } from '@/contexts/NotificationContext'
 import { UserNotificationService } from '@/lib/userNotificationService'
 
 export default function AdminMembersPage() {
-  const { markMemberAsApproved, clearApprovedMembers } = useNotifications()
   const [members, setMembers] = useState<Member[]>([])
   const [recentMembers, setRecentMembers] = useState<Member[]>([])
   const [filteredMembers, setFilteredMembers] = useState<Member[]>([])
@@ -139,7 +137,7 @@ export default function AdminMembersPage() {
       
       // Mark this member as approved FIRST to immediately update notifications
       console.log('Marking member as approved:', uid)
-      markMemberAsApproved(uid)
+      // Member approval notification removed - using unified notification system
       
       await updateMemberRole(uid, newRole)
       
@@ -179,7 +177,7 @@ export default function AdminMembersPage() {
     try {
       // Mark this member as approved FIRST when activating (changing from pending to active)
       if (newStatus === 'active') {
-        markMemberAsApproved(uid)
+        // Member approval notification removed - using unified notification system
       }
       
       await updateMemberStatus(uid, newStatus)
@@ -377,10 +375,7 @@ export default function AdminMembersPage() {
                 <Download className="w-4 h-4 mr-2" />
                 Export CSV
               </Button>
-              <Button onClick={clearApprovedMembers} variant="outline" className="border-yellow-200 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20">
-                <AlertTriangle className="w-4 h-4 mr-2" />
-                Clear Approved (Debug)
-              </Button>
+              {/* Clear Approved button removed - using unified notification system */}
             </div>
           </div>
         </CardHeader>

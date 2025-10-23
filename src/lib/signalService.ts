@@ -3,6 +3,17 @@ import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where, o
 import { Signal, SignalNotification } from '@/types/signal'
 import { sendSignalToTelegram, updateSignalStatusInTelegram } from './telegramService'
 
+// CRITICAL: Safe utility function for signal result calculations
+// DO NOT modify without testing VIP results page
+// Used in: app/dashboard/vip-results/page.tsx
+export const safeGetSignalResult = (signal: Signal): number => {
+  if (!signal) return 0
+  if (signal.result === undefined || signal.result === null) return 0
+  if (typeof signal.result !== 'number') return 0
+  if (isNaN(signal.result)) return 0
+  return signal.result
+}
+
 // Create a new signal
 export const createSignal = async (signalData: Omit<Signal, 'id' | 'createdAt' | 'updatedAt' | 'isActive'>) => {
   try {
@@ -18,36 +29,83 @@ export const createSignal = async (signalData: Omit<Signal, 'id' | 'createdAt' |
     const docRef = await addDoc(collection(db, 'signals'), signal)
     console.log('Signal saved with ID:', docRef.id)
     
-    // Create notification for the signal
+    // Create enhanced notification for the signal with detailed information
+    const signalType = signalData.type === 'BUY' ? '📈 BUY' : '📉 SELL'
+    const signalEmoji = signalData.category === 'vip' ? '👑' : '🔔'
+    
+    const enhancedMessage = `${signalEmoji} New ${signalData.category.toUpperCase()} Signal: ${signalData.pair}
+${signalType} @ ${signalData.entryPrice}
+🛑 SL: ${signalData.stopLoss} | 🎯 TP: ${signalData.takeProfit1}${signalData.takeProfit2 ? ` | TP2: ${signalData.takeProfit2}` : ''}`
+
+    // Clean signal data to remove undefined values (Firestore doesn't accept undefined)
+    const cleanSignalData: any = {
+      pair: signalData.pair,
+      type: signalData.type,
+      entryPrice: signalData.entryPrice,
+      stopLoss: signalData.stopLoss,
+      takeProfit1: signalData.takeProfit1
+    }
+    
+    // Only add optional fields if they have values
+    if (signalData.takeProfit2 !== undefined) cleanSignalData.takeProfit2 = signalData.takeProfit2
+    if (signalData.description !== undefined && signalData.description !== '') cleanSignalData.description = signalData.description
+    if (signalData.notes !== undefined && signalData.notes !== '') cleanSignalData.notes = signalData.notes
+
     const notificationData = {
       signalId: docRef.id,
       signalTitle: signalData.title,
       signalCategory: signalData.category,
-      message: `New ${signalData.category.toUpperCase()} signal: ${signalData.title}`,
-      sentTo: signalData.category === 'free' ? 'all' as const : 'vip' as const
+      message: enhancedMessage,
+      sentTo: signalData.category === 'free' ? 'all' as const : 'vip' as const,
+      // Add detailed signal data for programmatic access
+      signalData: cleanSignalData
     }
-    console.log('Creating notification:', notificationData)
+    console.log('Creating enhanced signal notification:', notificationData)
     await createSignalNotification(notificationData)
     
-    // Send to Telegram if configured
+    // CRITICAL: Send to Telegram and set flags for status updates
+    // DO NOT modify without testing Telegram integration
+    // Used in: Signal creation for VIP status updates
     try {
       console.log(`Sending ${signalData.category} signal to Telegram...`)
       const telegramResult = await sendSignalToTelegram({ id: docRef.id, ...signal })
       
       if (telegramResult.success) {
         console.log('Signal sent to Telegram successfully:', telegramResult.messageIds)
-        // Update signal with Telegram info
-        await updateDoc(docRef, {
+        // Update signal with Telegram info for future status updates
+        const telegramUpdateData = {
           sentToTelegram: true,
           telegramSentAt: Timestamp.now(),
           telegramMessageId: telegramResult.messageIds[0] || null,
           telegramChatId: signalData.category === 'vip' ? 'vip_channel' : 'public_channel'
-        })
+        }
+        
+        console.log('Updating signal with Telegram flags:', telegramUpdateData)
+        await updateDoc(docRef, telegramUpdateData)
+        console.log('Signal Telegram flags updated successfully')
       } else {
         console.warn('Failed to send signal to Telegram:', telegramResult.errors)
+        // Still set sentToTelegram to false for clarity
+        await updateDoc(docRef, {
+          sentToTelegram: false,
+          telegramSentAt: null,
+          telegramMessageId: null,
+          telegramChatId: null
+        })
       }
     } catch (telegramError) {
       console.error('Error sending signal to Telegram:', telegramError)
+      // Set sentToTelegram to false on error
+      try {
+        await updateDoc(docRef, {
+          sentToTelegram: false,
+          telegramSentAt: null,
+          telegramMessageId: null,
+          telegramChatId: null
+        })
+      } catch (updateError) {
+        console.error('Error updating signal with Telegram failure flags:', updateError)
+      }
       // Don't fail signal creation if Telegram fails
     }
     
@@ -116,9 +174,13 @@ export const getAllSignals = async (limitCount: number = 100) => {
   }
 }
 
-// Update signal status
+// CRITICAL: Update signal status and send Telegram notification
+// DO NOT modify without testing Telegram integration
+// Used in: Admin signals page status updates
 export const updateSignalStatus = async (signalId: string, status: Signal['status'], result?: number, closePrice?: number) => {
   try {
+    console.log('Updating signal status:', { signalId, status, result, closePrice })
+    
     const signalRef = doc(db, 'signals', signalId)
     const updateData: any = {
       status,
@@ -136,21 +198,46 @@ export const updateSignalStatus = async (signalId: string, status: Signal['statu
     }
     
     await updateDoc(signalRef, updateData)
+    console.log('Signal status updated in Firestore:', updateData)
 
     // Get signal data for Telegram update
     const signalDoc = await getDoc(signalRef)
     if (signalDoc.exists()) {
       const signal = { id: signalDoc.id, ...signalDoc.data() } as Signal
       
+      console.log('Signal data for Telegram update:', {
+        id: signal.id,
+        category: signal.category,
+        sentToTelegram: signal.sentToTelegram,
+        telegramMessageId: signal.telegramMessageId,
+        status: signal.status,
+        result: signal.result
+      })
+      
       // Only update Telegram if it's a VIP signal that was sent to Telegram
       if (signal.category === 'vip' && signal.sentToTelegram) {
+        console.log('Attempting Telegram status update for VIP signal:', signal.id)
         try {
-          await updateSignalStatusInTelegram(signal, status)
+          const telegramResult = await updateSignalStatusInTelegram(signal, status)
+          console.log('Telegram status update result:', telegramResult)
         } catch (telegramError) {
-          console.error('Error updating Telegram status:', telegramError)
+          console.error('CRITICAL: Error updating Telegram status:', {
+            error: telegramError,
+            signalId: signal.id,
+            status,
+            telegramMessageId: signal.telegramMessageId
+          })
           // Don't fail the status update if Telegram fails
         }
+      } else {
+        console.log('Skipping Telegram update:', {
+          reason: signal.category !== 'vip' ? 'Not VIP signal' : 'Not sent to Telegram',
+          category: signal.category,
+          sentToTelegram: signal.sentToTelegram
+        })
       }
+    } else {
+      console.error('Signal document not found after update:', signalId)
     }
   } catch (error) {
     console.error('Error updating signal status:', error)

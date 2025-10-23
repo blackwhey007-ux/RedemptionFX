@@ -50,9 +50,8 @@ service cloud.firestore {
       // Only admin can create notifications
       allow create: if request.auth != null && isAdmin();
       
-      // Users can update to mark as read
-      allow update: if request.auth != null && 
-        request.auth.uid in resource.data.readBy;
+      // Users can update to mark as read (add themselves to readBy array)
+      allow update: if request.auth != null;
     }
     
     // Profiles collection - multi-user profile access
@@ -209,6 +208,36 @@ service cloud.firestore {
       
       // Only admin can create/update/delete notifications
       allow write: if request.auth != null && isAdmin();
+    }
+    
+    // Event notifications collection - admin only
+    match /eventNotifications/{notificationId} {
+      // Only admin can read event notifications
+      allow read: if request.auth != null && isAdmin();
+      
+      // Only admin can create/update/delete event notifications
+      allow write: if request.auth != null && isAdmin();
+    }
+    
+    // User notifications - users can read their own notifications
+    match /user_notifications/{notificationId} {
+      allow read: if request.auth != null && 
+        resource.data.userId == request.auth.uid;
+      
+      // Admin can create user notifications
+      allow create: if request.auth != null && isAdmin();
+      
+      // Users can update their own notifications (mark as read)
+      allow update: if request.auth != null && 
+        resource.data.userId == request.auth.uid;
+    }
+    
+    // Admin notifications - only admins can access
+    match /adminNotifications/{notificationId} {
+      allow read: if request.auth != null && isAdmin();
+      allow create: if request.auth != null && isAdmin();
+      allow update: if request.auth != null && isAdmin();
+      allow delete: if request.auth != null && isAdmin();
     }
     
     // Default deny rule

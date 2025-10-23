@@ -193,7 +193,7 @@ Status: ${signal.status.replace('_', ' ').toUpperCase()}${signal.result ? `\nRes
       </Card>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center space-x-3">
@@ -240,6 +240,31 @@ Status: ${signal.status.replace('_', ' ').toUpperCase()}${signal.result ? `\nRes
                 </p>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   Active Signals
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        {/* CRITICAL: Total Pips calculation for VIP signals page */}
+        {/* DO NOT modify without testing VIP results page */}
+        {/* Used in: VIP signals page total pips display */}
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                <Calculator className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <p className={`text-2xl font-bold ${
+                  signals.reduce((total, s) => total + (s.result || 0), 0) >= 0 
+                    ? 'text-green-600' 
+                    : 'text-red-600'
+                }`}>
+                  {signals.reduce((total, s) => total + (s.result || 0), 0) > 0 ? '+' : ''}
+                  {signals.reduce((total, s) => total + (s.result || 0), 0).toFixed(0)}
+                </p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Total Pips
                 </p>
               </div>
             </div>

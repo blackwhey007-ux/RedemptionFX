@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/contexts/AuthContext'
-import { UserNotificationProvider } from '@/contexts/UserNotificationContext'
+import { NotificationPreferencesProvider } from '@/contexts/NotificationPreferencesContext'
 
 // Import Tailwind CSS and RedemptionFX Theme
 import './globals.css'
@@ -49,10 +49,10 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <AuthProvider>
-          <UserNotificationProvider>
+          <NotificationPreferencesProvider>
             {children}
             <Toaster />
-          </UserNotificationProvider>
+          </NotificationPreferencesProvider>
         </AuthProvider>
       </body>
     </html>

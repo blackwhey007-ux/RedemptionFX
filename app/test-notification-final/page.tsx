@@ -5,12 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { UserNotificationService } from '@/lib/userNotificationService'
 import { useAuth } from '@/contexts/AuthContext'
-import { useUserNotifications } from '@/contexts/UserNotificationContext'
+import { useUnifiedNotifications } from '@/contexts/UnifiedNotificationContext'
 import { toast } from 'sonner'
 
 export default function TestNotificationFinalPage() {
   const { user } = useAuth()
-  const { notifications, unreadCount, playNotificationSound } = useUserNotifications()
+  const { notifications, unreadCount, playNotificationSound } = useUnifiedNotifications()
   const [loading, setLoading] = useState(false)
 
   const testPromotionNotification = async () => {

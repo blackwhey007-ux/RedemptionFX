@@ -147,6 +147,7 @@ export default function AdminSignalsPage() {
     try {
       const signalData: any = {
         title: formData.title,
+        description: '', // Default empty description for quick signal creation
         category: formData.category,
         pair: formData.pair,
         type: formData.type,
