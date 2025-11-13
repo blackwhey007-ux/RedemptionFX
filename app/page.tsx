@@ -1,9 +1,10 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle, TrendingUp, Shield, Users, Zap, Star, ArrowRight, BarChart3, Clock, Target, MessageCircle, Instagram, Youtube, Music2, Send, Hash, MessageSquare, Bot } from 'lucide-react'
+import { CheckCircle, TrendingUp, Shield, Users, Zap, Star, ArrowRight, BarChart3, Clock, Target, MessageCircle, Instagram, Youtube, Music2, Send, Hash, MessageSquare, Bot, Signal, BookOpen, Database, Calendar } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { FireworksBackground } from '@/components/effects/FireworksBackground'
 
 export default function HomePage() {
   return (
@@ -74,6 +75,9 @@ export default function HomePage() {
           <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-orange-600/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-red-600/5 rounded-full blur-3xl" />
         </div>
+
+        {/* Fireworks Background Effect */}
+        <FireworksBackground />
 
         <div className="container mx-auto px-4 py-20 relative z-10">
           <div className="max-w-6xl mx-auto">
@@ -244,46 +248,76 @@ export default function HomePage() {
       <section id="features" className="py-24 relative">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <Badge className="mb-4 bg-red-600/20 text-red-400 border-red-500/30">Why Choose Us</Badge>
+            <Badge className="mb-4 bg-red-600/20 text-red-400 border-red-500/30">Platform Features</Badge>
             <h2 className="text-4xl md:text-5xl font-black text-white mb-4">
-              Professional Trading Signals
+              Everything You Need to Trade Like a Pro
             </h2>
             <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-              Institutional-grade analysis and proven results, delivered instantly
+              Professional tools and features designed to help you succeed in forex trading
             </p>
             </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {[
               {
+                icon: Signal,
+                title: 'Free & VIP Signals',
+                description: 'Real-time trading signals with entry, stop loss, and take profit levels delivered instantly',
+                color: 'red'
+              },
+              {
                 icon: TrendingUp,
-                title: 'Verified Performance',
-                description: '78% win rate with transparent tracking and real-time updates',
+                title: 'Live Performance Tracking',
+                description: 'Monitor verified results with MT5 integration and transparent win rate tracking',
                 color: 'green'
               },
               {
-                icon: Zap,
-                title: 'Instant Alerts',
-                description: 'Get signals via Telegram, Discord, and email instantly',
-                color: 'yellow'
-              },
-              {
-                icon: Shield,
-                title: 'Risk Management',
-                description: 'Every signal includes SL/TP levels to protect your capital',
+                icon: BookOpen,
+                title: 'Professional Trading Journal',
+                description: 'Track all your trades with ICT analysis, chart uploads, and detailed trade notes',
                 color: 'blue'
               },
               {
+                icon: BarChart3,
+                title: 'Advanced Analytics Dashboard',
+                description: 'Comprehensive performance metrics, win rates, profit tracking, and statistical insights',
+                color: 'orange'
+              },
+              {
+                icon: Database,
+                title: 'Currency Intelligence Database',
+                description: 'Access detailed currency pair information, spreads, and market analysis tools',
+                color: 'purple'
+              },
+              {
+                icon: Calendar,
+                title: 'Economic Calendar',
+                description: 'Real-time economic events, news releases, and market-moving announcements',
+                color: 'yellow'
+              },
+              {
                 icon: Target,
-                title: 'High Accuracy',
-                description: 'Institutional-level analysis from 6 years of experience',
+                title: 'Performance Leaderboards',
+                description: 'Compete with other traders, track rankings, and showcase your achievements',
+                color: 'pink'
+              },
+              {
+                icon: Zap,
+                title: 'Multi-Platform Delivery',
+                description: 'Receive signals via Telegram, Discord, and Email for maximum reliability',
+                color: 'cyan'
+              },
+              {
+                icon: Users,
+                title: 'Active Trading Community',
+                description: 'Connect with 500+ successful traders, share insights, and learn together',
                 color: 'red'
               }
             ].map((feature, index) => (
               <Card key={index} className="bg-gradient-to-br from-white/5 to-white/[0.02] border-white/10 hover:border-red-500/30 transition-all duration-300 group hover:scale-105">
                 <CardHeader>
                   <div className={`w-14 h-14 bg-gradient-to-br from-${feature.color}-500/20 to-${feature.color}-600/20 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                    <feature.icon className={`w-7 h-7 text-${feature.color}-500`} />
+                    <feature.icon className={`w-7 h-7 text-${feature.color}-400`} />
                   </div>
                   <CardTitle className="text-xl text-white mb-2">{feature.title}</CardTitle>
                   <CardDescription className="text-gray-400">{feature.description}</CardDescription>
@@ -406,6 +440,130 @@ export default function HomePage() {
                 </div>
                   </div>
                 </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Why Choose Us Section */}
+      <section className="py-24 bg-gradient-to-b from-red-950/5 to-black">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <Badge className="mb-4 bg-red-600/20 text-red-400 border-red-500/30">Why RedemptionFX</Badge>
+            <h2 className="text-4xl md:text-5xl font-black text-white mb-4">
+              Why <span className="bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">500+ Traders</span> Trust Us
+            </h2>
+            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+              Real results, transparent tracking, and a proven track record
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            {[
+              {
+                icon: TrendingUp,
+                title: 'Verified Results',
+                description: '78% win rate with transparent tracking and real-time performance updates',
+                color: 'from-green-500 to-green-600',
+                bgColor: 'from-green-950/30 to-green-900/20'
+              },
+              {
+                icon: Star,
+                title: 'Proven Track Record',
+                description: '2,847+ pips generated with consistent profitability month after month',
+                color: 'from-yellow-500 to-yellow-600',
+                bgColor: 'from-yellow-950/30 to-yellow-900/20'
+              },
+              {
+                icon: Users,
+                title: 'Active Community',
+                description: 'Join 500+ successful traders sharing insights and achieving their goals',
+                color: 'from-blue-500 to-blue-600',
+                bgColor: 'from-blue-950/30 to-blue-900/20'
+              },
+              {
+                icon: Clock,
+                title: '24/7 Support',
+                description: 'Always available when you need help, guidance, or have questions',
+                color: 'from-purple-500 to-purple-600',
+                bgColor: 'from-purple-950/30 to-purple-900/20'
+              },
+              {
+                icon: Zap,
+                title: 'Instant Delivery',
+                description: 'Signals delivered in real-time via Telegram, Discord, and Email',
+                color: 'from-orange-500 to-orange-600',
+                bgColor: 'from-orange-950/30 to-orange-900/20'
+              },
+              {
+                icon: Shield,
+                title: 'Risk Management',
+                description: 'Every signal includes Stop Loss and Take Profit to protect your capital',
+                color: 'from-red-500 to-red-600',
+                bgColor: 'from-red-950/30 to-red-900/20'
+              }
+            ].map((item, index) => (
+              <div key={index} className="relative group">
+                <div className={`absolute inset-0 bg-gradient-to-br ${item.bgColor} rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
+                <Card className="relative bg-gradient-to-br from-white/5 to-white/[0.02] border-white/10 hover:border-red-500/30 transition-all duration-300 group-hover:scale-105 h-full">
+                  <CardHeader>
+                    <div className={`w-14 h-14 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
+                      <item.icon className="w-7 h-7 text-white" />
+                    </div>
+                    <CardTitle className="text-xl text-white mb-2">{item.title}</CardTitle>
+                    <CardDescription className="text-gray-400">{item.description}</CardDescription>
+                  </CardHeader>
+                </Card>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Technology & Integration Section */}
+      <section className="py-24 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-black via-red-950/5 to-black" />
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="text-center mb-16">
+            <Badge className="mb-4 bg-red-600/20 text-red-400 border-red-500/30">Powered By</Badge>
+            <h2 className="text-4xl md:text-5xl font-black text-white mb-4">
+              Technology That Works
+            </h2>
+            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+              Enterprise-grade infrastructure ensuring reliability and performance
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
+            {[
+              {
+                title: 'Real-Time Updates',
+                description: 'Firebase-powered instant notifications and live data sync',
+                icon: '⚡'
+              },
+              {
+                title: 'MT5 Integration',
+                description: 'Live trading data synchronization with MetaTrader 5',
+                icon: '📊'
+              },
+              {
+                title: 'Multi-Platform',
+                description: 'Telegram, Discord, Email integration for maximum reach',
+                icon: '🔗'
+              },
+              {
+                title: 'Bank-Level Security',
+                description: 'SSL encryption and secure authentication for your data',
+                icon: '🔒'
+              }
+            ].map((item, index) => (
+              <Card key={index} className="bg-gradient-to-br from-white/5 to-white/[0.02] border-white/10 hover:border-red-500/30 transition-all duration-300 hover:scale-105 text-center">
+                <CardContent className="pt-6">
+                  <div className="text-5xl mb-4">{item.icon}</div>
+                  <h3 className="text-lg font-bold text-white mb-2">{item.title}</h3>
+                  <p className="text-sm text-gray-400">{item.description}</p>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
       </section>

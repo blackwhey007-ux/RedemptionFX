@@ -31,8 +31,10 @@ export interface Trade {
   chartImage?: string
   tradingViewLink?: string
   ictAnalysis?: ICTAnalysis
-  profileId: string // Links trade to specific profile
+  profileId?: string // [DEPRECATED] Links trade to specific profile - use accountId/accountLinkId instead
   userId: string // Owner of the trade
+  accountId?: string // MetaAPI account ID (for direct account linking)
+  accountLinkId?: string // Account link ID from user's linkedAccounts array
   // MT5 specific fields
   mt5TicketId?: string // MT5 ticket for deduplication
   mt5Commission?: number // Commission from MT5
@@ -41,6 +43,9 @@ export interface Trade {
   closeTime?: Date // Actual MT5 close time
   syncMethod?: 'manual' | 'api' // How this trade was imported
   importedAt?: Date // When this trade was imported
+  stopLoss?: number // Stop loss price from MT5
+  takeProfit?: number // Take profit price from MT5
+  duration?: number // Trade duration in seconds
   createdAt?: Date | any // Firestore timestamp (can be Timestamp or Date)
   updatedAt?: Date | any // Firestore timestamp (can be Timestamp or Date)
 }

@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation'
 import { 
   getActiveEvents, 
   applyToEvent,
-  getUserApplications
+  getUserApplications,
+  getEventDisplayStatus
 } from '@/lib/eventService'
 import { 
   Event, 
@@ -16,7 +17,9 @@ import {
   EVENT_TYPE_ICONS,
   EVENT_TYPE_COLORS,
   APPLICATION_STATUS_LABELS,
-  APPLICATION_STATUS_COLORS
+  APPLICATION_STATUS_COLORS,
+  DISPLAY_EVENT_STATUS_LABELS,
+  DISPLAY_EVENT_STATUS_COLORS
 } from '@/types/event'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -268,6 +271,7 @@ export default function EventsPage() {
               const userApplication = getUserApplicationForEvent(event.id)
               const isFull = isEventFull(event)
               const remainingSpots = getRemainingSpots(event)
+              const displayStatus = getEventDisplayStatus(event)
 
               return (
                 <Card key={event.id} className="relative group overflow-hidden hover:shadow-xl transition-all duration-300">
@@ -286,11 +290,16 @@ export default function EventsPage() {
                           </CardDescription>
                         </div>
                       </div>
-                      {isFull && (
-                        <Badge className="bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">
-                          Full
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge className={DISPLAY_EVENT_STATUS_COLORS[displayStatus]}>
+                          {DISPLAY_EVENT_STATUS_LABELS[displayStatus]}
                         </Badge>
-                      )}
+                        {isFull && (
+                          <Badge className="bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">
+                            Full
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </CardHeader>
 
@@ -347,14 +356,19 @@ export default function EventsPage() {
                     ) : (
                       <Button
                         onClick={() => handleApplyToEvent(event)}
-                        disabled={isFull}
+                        disabled={isFull || displayStatus === 'ended'}
                         className={`w-full ${
-                          isFull 
+                          isFull || displayStatus === 'ended'
                             ? 'bg-gray-400 cursor-not-allowed' 
                             : `bg-gradient-to-r ${colorClass} hover:opacity-90 text-white`
                         }`}
                       >
-                        {isFull ? (
+                        {displayStatus === 'ended' ? (
+                          <>
+                            <XCircle className="w-4 h-4 mr-2" />
+                            Event Ended
+                          </>
+                        ) : isFull ? (
                           <>
                             <XCircle className="w-4 h-4 mr-2" />
                             Event Full

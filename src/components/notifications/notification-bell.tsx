@@ -37,24 +37,41 @@ export function NotificationBell({
   const [isOpen, setIsOpen] = useState(false)
 
   const handleNotificationClick = async (notification: any) => {
-    if (!notification.read) {
-      const notificationType = getNotificationType(notification)
-      await markAsRead(notification.id, notificationType)
-    }
-    
-    // Handle action URL if present
-    if (notification.data?.actionUrl) {
-      const actionUrl = notification.data.actionUrl
+    try {
+      // Mark as read first if not already read
+      if (!notification.read) {
+        try {
+          const notificationType = getNotificationType(notification)
+          console.log('Marking notification as read:', { id: notification.id, type: notificationType })
+          await markAsRead(notification.id, notificationType)
+        } catch (markError) {
+          console.error('Error marking notification as read:', markError)
+          // Continue with navigation even if marking as read fails
+        }
+      }
       
-      // Check if it's an external URL (starts with http)
-      if (actionUrl.startsWith('http')) {
-        window.open(actionUrl, '_blank')
-      } else {
-        // Internal link - navigate within the app
-        // Add a small delay to ensure the notification is marked as read first
+      // Handle action URL if present
+      if (notification.data?.actionUrl) {
+        const actionUrl = notification.data.actionUrl
+        
+        // Check if it's an external URL (starts with http)
+        if (actionUrl.startsWith('http')) {
+          window.open(actionUrl, '_blank')
+        } else {
+          // Internal link - navigate within the app
+          // Use a small delay to ensure state updates are processed
+          setTimeout(() => {
+            window.location.href = actionUrl
+          }, 150)
+        }
+      }
+    } catch (error) {
+      console.error('Error handling notification click:', error)
+      // If there's an actionUrl, still try to navigate even if marking as read failed
+      if (notification.data?.actionUrl && !notification.data.actionUrl.startsWith('http')) {
         setTimeout(() => {
-          window.location.href = actionUrl
-        }, 100)
+          window.location.href = notification.data.actionUrl
+        }, 150)
       }
     }
   }

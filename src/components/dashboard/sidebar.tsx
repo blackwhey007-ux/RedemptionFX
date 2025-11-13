@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
+import { useSidebar } from '@/contexts/SidebarContext'
 import { 
   Menu,
   X,
@@ -29,7 +30,12 @@ import {
   Sparkles,
   Zap,
   Calendar,
-  Bot
+  Bot,
+  Shield,
+  ChevronsLeft,
+  ChevronsRight,
+  Server,
+  Copy
 } from 'lucide-react'
 
 interface NavItem {
@@ -48,6 +54,7 @@ interface SidebarProps {
 
 export function Sidebar({ user }: SidebarProps) {
   const { user: authUser, loading } = useAuth()
+  const { isCollapsed, toggleCollapsed } = useSidebar()
   const [isOpen, setIsOpen] = useState(false)
   const [expandedItems, setExpandedItems] = useState<string[]>(['dashboard', 'trading'])
   const pathname = usePathname()
@@ -55,9 +62,9 @@ export function Sidebar({ user }: SidebarProps) {
   // Show loading state while auth is loading
   if (loading) {
     return (
-      <div className="fixed inset-y-0 left-0 z-40 w-64 bg-gradient-to-b from-white/95 to-slate-50/95 dark:from-black/95 dark:to-black/95 backdrop-blur-xl border-r border-red-200/20 dark:border-red-800/20">
+      <div className="fixed inset-y-0 left-0 z-40 w-64 bg-gradient-to-b from-white/95 to-slate-50/95 dark:from-black/95 dark:to-black/95 backdrop-blur-xl border-r border-gray-200/20 dark:border-gray-800/20">
         <div className="flex items-center justify-center h-full">
-          <div className="w-6 h-6 border-2 border-red-200 border-t-red-600 rounded-full animate-spin"></div>
+          <div className="w-6 h-6 border-2 border-gray-200 border-t-gray-600 dark:border-gray-700 dark:border-t-gray-400 rounded-full animate-spin"></div>
         </div>
       </div>
     )
@@ -75,27 +82,11 @@ export function Sidebar({ user }: SidebarProps) {
   const getNavigationItems = (): NavItem[] => {
     const baseItems: NavItem[] = [
       {
-        id: 'signals',
-        title: 'Signals',
-        icon: Signal,
-        href: '/dashboard/signals',
-        description: 'Trading Signals',
-        subcategories: [
-          {
-            id: 'free-signals',
-            title: 'Free Signals',
-            icon: Target,
-            href: '/dashboard/signals/free',
-            description: 'Free Trading Signals'
-          },
-          {
-            id: 'vip-signals',
-            title: 'VIP Signals',
-            icon: Zap,
-            href: '/dashboard/signals/vip',
-            description: 'VIP Trading Signals'
-          }
-        ]
+        id: 'dashboard',
+        title: 'Dashboard',
+        icon: Home,
+        href: '/dashboard',
+        description: 'Dashboard Home'
       },
       {
         id: 'vip-results',
@@ -113,6 +104,14 @@ export function Sidebar({ user }: SidebarProps) {
         description: 'Browse and Apply to Events'
       },
       {
+        id: 'copy-trading',
+        title: 'Copy Trading',
+        icon: Copy,
+        href: '/dashboard/copy-trading',
+        description: 'Automated Copy Trading',
+        badge: 'NEW'
+      },
+      {
         id: 'trading',
         title: 'Trading Journal',
         icon: BookOpen,
@@ -121,10 +120,17 @@ export function Sidebar({ user }: SidebarProps) {
         subcategories: [
           {
             id: 'add-trades',
-            title: 'Add Trades',
+            title: 'Trading Journal',
             icon: BookOpen,
             href: '/dashboard/trading-journal',
-            description: 'Record New Trades'
+            description: 'View and Manage Trades'
+          },
+          {
+            id: 'closed-trades',
+            title: 'Closed Trades',
+            icon: History,
+            href: '/dashboard/trading-journal/closed-trades',
+            description: 'View Closed Trade History'
           },
           {
             id: 'analytics',
@@ -148,6 +154,13 @@ export function Sidebar({ user }: SidebarProps) {
             icon: Database,
             href: '/dashboard/currency-database',
             description: 'Edit Currency Database'
+          },
+          {
+            id: 'economic-calendar',
+            title: 'Economic Calendar',
+            icon: Calendar,
+            href: '/dashboard/currency-database/economic-calendar',
+            description: 'Track Economic Events'
           }
         ]
       }
@@ -159,29 +172,15 @@ export function Sidebar({ user }: SidebarProps) {
         id: 'admin',
         title: 'Admin',
         icon: Settings,
-        href: '/dashboard/admin',
+        href: '#', // Not clickable - just a category
         description: 'Administration',
         subcategories: [
-          {
-            id: 'profiles',
-            title: 'Manage Profiles',
-            icon: Users,
-            href: '/dashboard/profiles',
-            description: 'Manage Trading Profiles'
-          },
           {
             id: 'members',
             title: 'Members',
             icon: Users,
             href: '/dashboard/admin/members',
             description: 'Manage Users'
-          },
-          {
-            id: 'admin-signals',
-            title: 'Manage Signals',
-            icon: Signal,
-            href: '/dashboard/admin/signals',
-            description: 'Create & Manage Signals'
           },
           {
             id: 'promotions',
@@ -205,6 +204,20 @@ export function Sidebar({ user }: SidebarProps) {
             description: 'Manage VIP Trading Data Sync'
           },
           {
+            id: 'metaapi-setup',
+            title: 'MetaAPI Setup',
+            icon: Server,
+            href: '/dashboard/admin/metaapi-setup',
+            description: 'Configure MetaAPI credentials & streaming'
+          },
+          {
+            id: 'mt5-trade-history',
+            title: 'MT5 Trade History',
+            icon: History,
+            href: '/dashboard/admin/mt5-history',
+            description: 'View Archived Trading History'
+          },
+          {
             id: 'telegram-settings',
             title: 'Telegram Settings',
             icon: Bot,
@@ -212,11 +225,25 @@ export function Sidebar({ user }: SidebarProps) {
             description: 'Configure Telegram Bot Integration'
           },
           {
-            id: 'test-notifications',
-            title: 'Test Notifications',
-            icon: Activity,
-            href: '/dashboard/admin/test-notifications',
-            description: 'Test Notification System'
+            id: 'metaapi-usage',
+            title: 'MetaAPI Usage',
+            icon: BarChart3,
+            href: '/dashboard/admin/metaapi-usage',
+            description: 'Track Credit Usage & Quotas'
+          },
+          {
+            id: 'streaming-logs',
+            title: 'Streaming Logs',
+            icon: History,
+            href: '/dashboard/admin/streaming-logs',
+            description: 'View MT5 Streaming Events & TP/SL Changes'
+          },
+          {
+            id: 'copy-trading-admin',
+            title: 'Copy Trading',
+            icon: Copy,
+            href: '/dashboard/admin/copy-trading',
+            description: 'Manage Copy Trading Strategy & Followers'
           }
         ]
       })
@@ -233,7 +260,7 @@ export function Sidebar({ user }: SidebarProps) {
       <Button
         variant="ghost"
         size="sm"
-        className="md:hidden fixed top-4 left-4 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200 dark:border-slate-700 shadow-lg"
+        className="md:hidden fixed top-4 left-4 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 shadow-lg"
         onClick={() => setIsOpen(!isOpen)}
       >
         {isOpen ? <X className="h-5 w-5 text-slate-900 dark:text-white" /> : <Menu className="h-5 w-5 text-slate-900 dark:text-white" />}
@@ -241,26 +268,39 @@ export function Sidebar({ user }: SidebarProps) {
 
       {/* Sidebar */}
       <div className={cn(
-        "fixed inset-y-0 left-0 z-40 w-64 bg-gradient-to-b from-white/95 to-slate-50/95 dark:from-black/95 dark:to-black/95 backdrop-blur-xl border-r border-red-200/20 dark:border-red-800/20 transform transition-all duration-500 ease-out shadow-2xl",
+        "fixed inset-y-0 left-0 z-40 bg-gradient-to-b from-white/95 to-slate-50/95 dark:from-black/95 dark:to-black/95 backdrop-blur-xl border-r border-gray-200/50 dark:border-gray-800/50 transform transition-all duration-300 ease-out shadow-2xl",
+        isCollapsed ? "w-20" : "w-64",
+        // Desktop: always visible
         "md:translate-x-0",
-        isOpen ? "translate-x-0" : "-translate-x-full"
+        // Mobile: overlay behavior
+        isOpen ? "max-md:translate-x-0" : "max-md:-translate-x-full"
       )}>
         <div className="flex flex-col h-full">
-          {/* RedemptionFX Brand Section */}
-          <div className="p-6 border-b border-red-200/20 dark:border-red-800/20">
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-red-500 via-red-600 to-orange-500 rounded-xl flex items-center justify-center shadow-lg transform hover:scale-105 transition-all duration-300">
-                <span className="text-white font-black text-xl">R</span>
-              </div>
-              <div>
-                <div className="text-xl font-black bg-gradient-to-r from-red-600 to-orange-500 bg-clip-text text-transparent">
-                  REDEMPTION
-                </div>
-                <div className="text-xs text-red-500 dark:text-red-400 font-bold tracking-wider">
-                  FX
-                </div>
-              </div>
-            </div>
+          {/* Collapse Toggle Button - Always Visible */}
+          <div className="p-3 border-b border-gray-200/50 dark:border-gray-800/50">
+            <button
+              onClick={toggleCollapsed}
+              className={cn(
+                "w-full p-3 rounded-lg transition-all duration-300",
+                "hover:bg-gray-100 dark:hover:bg-gray-800/50",
+                "flex items-center justify-center gap-2",
+                "active:scale-95 touch-manipulation",
+                "group"
+              )}
+              aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {isCollapsed ? (
+                <ChevronsRight className="h-5 w-5 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors" />
+              ) : (
+                <>
+                  <ChevronsLeft className="h-5 w-5 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors" />
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors">
+                    Collapse
+                  </span>
+                </>
+              )}
+            </button>
           </div>
 
           {/* Navigation */}
@@ -271,51 +311,79 @@ export function Sidebar({ user }: SidebarProps) {
                   {/* Main Category */}
                   {item.subcategories && item.subcategories.length > 0 ? (
                     <div 
-                      className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 border border-transparent hover:border-red-200 dark:hover:border-red-800/30 transition-all duration-300 cursor-pointer group"
-                      onClick={() => toggleExpanded(item.id)}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <item.icon className="w-5 h-5 text-red-500 dark:text-red-400 group-hover:text-red-600 dark:group-hover:text-red-300" />
-                        <div>
-                          <div className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-red-700 dark:group-hover:text-red-300">
-                            {item.title}
-                          </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400 group-hover:text-red-500 dark:group-hover:text-red-400">
-                            {item.description}
-                          </div>
-                        </div>
-                      </div>
-                      {expandedItems.includes(item.id) ? (
-                        <ChevronDown className="w-4 h-4 text-slate-400" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                      className={cn(
+                        "flex items-center px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 border border-transparent hover:border-gray-200 dark:hover:border-gray-700/50 transition-all duration-300 cursor-pointer group",
+                        isCollapsed ? "justify-center" : "justify-between"
                       )}
-                    </div>
-                  ) : (
-                    <Link href={item.href}>
-                      <div className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 border border-transparent hover:border-red-200 dark:hover:border-red-800/30 transition-all duration-300 cursor-pointer group">
-                        <div className="flex items-center space-x-3">
-                          <item.icon className="w-5 h-5 text-red-500 dark:text-red-400 group-hover:text-red-600 dark:group-hover:text-red-300" />
+                      onClick={() => {
+                        if (isCollapsed) {
+                          toggleCollapsed()
+                        } else {
+                          toggleExpanded(item.id)
+                        }
+                      }}
+                      title={isCollapsed ? `${item.title} - Click to expand sidebar` : undefined}
+                    >
+                      <div className={cn("flex items-center", isCollapsed ? "justify-center" : "space-x-3")}>
+                        <item.icon className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100" />
+                        {!isCollapsed && (
                           <div>
-                            <div className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-red-700 dark:group-hover:text-red-300">
+                            <div className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-gray-900 dark:group-hover:text-gray-100">
                               {item.title}
                             </div>
-                            <div className="text-xs text-slate-500 dark:text-slate-400 group-hover:text-red-500 dark:group-hover:text-red-400">
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
                               {item.description}
                             </div>
                           </div>
+                        )}
+                      </div>
+                      {!isCollapsed && (
+                        expandedItems.includes(item.id) ? (
+                          <ChevronDown className="w-4 h-4 text-slate-400" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-slate-400" />
+                        )
+                      )}
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => {
+                        if (isCollapsed) {
+                          toggleCollapsed()
+                        }
+                      }}
+                    >
+                      <Link href={item.href}>
+                        <div className={cn(
+                          "flex items-center px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 border border-transparent hover:border-gray-200 dark:hover:border-gray-700/50 transition-all duration-300 cursor-pointer group",
+                          isCollapsed ? "justify-center" : "justify-between"
+                        )}
+                        title={isCollapsed ? `${item.title} - Click to expand sidebar` : undefined}>
+                        <div className={cn("flex items-center", isCollapsed ? "justify-center" : "space-x-3")}>
+                          <item.icon className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100" />
+                          {!isCollapsed && (
+                            <div>
+                              <div className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-gray-900 dark:group-hover:text-gray-100">
+                                {item.title}
+                              </div>
+                              <div className="text-xs text-slate-500 dark:text-slate-400">
+                                {item.description}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        {item.badge && (
+                        {!isCollapsed && item.badge && (
                           <span className="px-2 py-1 text-xs font-bold text-white bg-red-500 rounded-full animate-pulse">
                             {item.badge}
                           </span>
                         )}
                       </div>
                     </Link>
+                    </div>
                   )}
 
                   {/* Subcategories */}
-                  {expandedItems.includes(item.id) && (
+                  {!isCollapsed && expandedItems.includes(item.id) && item.subcategories && (
                     <div className="ml-6 space-y-1">
                       {item.subcategories.map((sub) => (
                         <div key={sub.id} className="space-y-1">
@@ -324,21 +392,21 @@ export function Sidebar({ user }: SidebarProps) {
                             className={cn(
                               "flex items-center space-x-3 px-3 py-2 rounded-lg transition-all duration-300 group",
                               pathname === sub.href
-                                ? "bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800/50"
+                                ? "bg-gray-100 dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700"
                                 : "hover:bg-slate-50 dark:hover:bg-slate-800/50 border border-transparent hover:border-slate-200 dark:hover:border-slate-700/50"
                             )}
                           >
                             <sub.icon className={cn(
                               "w-4 h-4",
                               pathname === sub.href
-                                ? "text-red-600 dark:text-red-400"
+                                ? "text-gray-900 dark:text-gray-100"
                                 : "text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300"
                             )} />
                             <div className="flex-1">
                               <div className={cn(
                                 "text-sm font-medium",
                                 pathname === sub.href
-                                  ? "text-red-700 dark:text-red-300"
+                                  ? "text-gray-900 dark:text-gray-100"
                                   : "text-slate-600 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200"
                               )}>
                                 {sub.title}
@@ -360,10 +428,18 @@ export function Sidebar({ user }: SidebarProps) {
 
           {/* Footer */}
           <div className="p-4 border-t border-red-200/20 dark:border-red-800/20">
-            <div className="text-center text-xs text-slate-500 dark:text-slate-400">
-              <div className="font-bold text-red-500 dark:text-red-400 mb-1">REDEMPTIONFX</div>
-              <div>© 2024 - Rise from Ashes to Gold</div>
-            </div>
+            {isCollapsed ? (
+              <div className="flex justify-center">
+                <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-orange-500 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-black text-sm">R</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center text-xs text-slate-500 dark:text-slate-400">
+                <div className="font-bold text-red-500 dark:text-red-400 mb-1">REDEMPTIONFX</div>
+                <div>© 2024 - Rise from Ashes to Gold</div>
+              </div>
+            )}
           </div>
         </div>
       </div>

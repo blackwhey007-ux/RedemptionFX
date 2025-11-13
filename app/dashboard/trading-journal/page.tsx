@@ -1,14 +1,16 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardDecorativeOrb } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { createTrade, getTradesByProfile, updateTrade, deleteTrade } from '@/lib/tradeService'
+import { StatsCard } from '@/components/ui/stats-card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { createTrade, getTradesByAccount, updateTrade, deleteTrade } from '@/lib/tradeService'
 import { 
   PlusIcon, 
   EditIcon, 
@@ -40,23 +42,34 @@ import {
   Settings,
   User,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  History
 } from 'lucide-react'
 import { CURRENCY_PAIRS, calculatePips, calculateProfit, getCategoryIcon, getPriceColor, formatRealPrice, getCurrencyPair } from '@/lib/currencyDatabase'
 import { CurrencyDatabaseService } from '@/lib/currencyDatabaseService'
 import { Trade, ICTAnalysis } from '@/types/trade'
-import { useProfile, ProfileProvider } from '@/contexts/ProfileContext'
 import { useAuth } from '@/contexts/AuthContext'
-import { ProfileSelector } from '@/components/dashboard/profile-selector'
+import { AccountSelector } from '@/components/dashboard/account-selector'
+import { getUserLinkedAccounts, getActiveAccount, LinkedAccount } from '@/lib/accountService'
 import { useRouter } from 'next/navigation'
 import { getActivePromotions } from '@/lib/promotionService'
 import { Promotion } from '@/types/promotion'
 import PromotionBanner from '@/components/promotions/promotion-banner'
+import { RefreshCw, Zap as ZapIcon, Calendar as CalendarIcon, HelpCircle } from 'lucide-react'
+import { toast } from 'sonner'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
+import { Checkbox } from '@/components/ui/checkbox'
 
 function TradingJournalPageContent() {
   const { user: authUser } = useAuth()
-  const { currentProfile, userRole, canEdit, isLoading: profileLoading } = useProfile()
   const router = useRouter()
+  
+  // Account state
+  const [activeAccount, setActiveAccount] = useState<LinkedAccount | null>(null)
+  const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([])
+  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set()) // Multiple account selection
+  const [accountsLoading, setAccountsLoading] = useState(false)
   
   // Promotions state
   const [promotions, setPromotions] = useState<Promotion[]>([])
@@ -71,6 +84,19 @@ function TradingJournalPageContent() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
   const [expandedTrades, setExpandedTrades] = useState<Set<string>>(new Set())
+  
+  // Sync state
+  const [syncing, setSyncing] = useState(false)
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null)
+  const [syncDateRange, setSyncDateRange] = useState<'default' | 'custom' | 'all'>('default')
+  const [syncStartDate, setSyncStartDate] = useState<string>('')
+  const [syncEndDate, setSyncEndDate] = useState<string>('')
+  const [showFullSyncModal, setShowFullSyncModal] = useState(false)
+  const [fullSyncStartDate, setFullSyncStartDate] = useState<Date | null>(null)
+  const [fullSyncEndDate, setFullSyncEndDate] = useState<Date | null>(new Date())
+  // Multi-account sync state
+  const [syncAccountIds, setSyncAccountIds] = useState<Set<string>>(new Set()) // Accounts to sync
+  const [syncProgress, setSyncProgress] = useState<Map<string, {status: 'syncing' | 'success' | 'error', message: string, summary?: {tradesImported?: number, tradesUpdated?: number}}>>(new Map())
   
   // Search and sorting state
   const [searchQuery, setSearchQuery] = useState('')
@@ -97,34 +123,156 @@ function TradingJournalPageContent() {
     }
   }
 
-  // Function to load trades
+  // Load accounts
+  const loadAccounts = async () => {
+    if (!authUser?.uid) return
+    
+    try {
+      setAccountsLoading(true)
+      const accounts = await getUserLinkedAccounts(authUser.uid)
+      setLinkedAccounts(accounts)
+      
+      const active = await getActiveAccount(authUser.uid)
+      setActiveAccount(active)
+      
+      // Restore selected accounts from localStorage (shared with closed trades page)
+      try {
+        const stored = localStorage.getItem('trading-journal-selected-accounts')
+        if (stored) {
+          const storedIds = JSON.parse(stored) as string[]
+          // Only restore accounts that still exist
+          const validIds = storedIds.filter(id => accounts.some(acc => acc.id === id))
+          if (validIds.length > 0) {
+            setSelectedAccountIds(new Set(validIds))
+            setSyncAccountIds(new Set(validIds)) // Initialize sync accounts
+            return
+          }
+        }
+      } catch (e) {
+        console.warn('Error reading selected accounts from localStorage:', e)
+      }
+      
+      // Initialize selected accounts - default to active account, or all if none active
+      if (active) {
+        setSelectedAccountIds(new Set([active.id]))
+        setSyncAccountIds(new Set([active.id])) // Initialize sync accounts
+      } else if (accounts.length > 0) {
+        // If no active account but accounts exist, select all
+        setSelectedAccountIds(new Set(accounts.map(acc => acc.id)))
+        setSyncAccountIds(new Set(accounts.map(acc => acc.id))) // Initialize sync accounts
+      }
+      
+      // Load lastSyncAt from account
+      if (active?.id) {
+        try {
+          const response = await fetch(`/api/accounts/${active.id}/sync`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': authUser.uid,
+              'x-user-email': authUser.email || '',
+            },
+          })
+          if (response.ok) {
+            const data = await response.json()
+            if (data.account?.lastSyncAt) {
+              setLastSyncAt(data.account.lastSyncAt)
+            }
+          }
+        } catch (error) {
+          console.error('Error loading lastSyncAt:', error)
+          // Non-critical, continue
+        }
+      }
+    } catch (error) {
+      console.error('Error loading accounts:', error)
+      toast.error('Failed to load accounts')
+    } finally {
+      setAccountsLoading(false)
+    }
+  }
+
+  // Save selected accounts to localStorage whenever they change (shared with closed trades page)
+  useEffect(() => {
+    if (selectedAccountIds.size > 0) {
+      try {
+        localStorage.setItem('trading-journal-selected-accounts', JSON.stringify(Array.from(selectedAccountIds)))
+      } catch (e) {
+        console.warn('Error saving selected accounts to localStorage:', e)
+      }
+    }
+  }, [selectedAccountIds])
+
+  // Function to load trades - supports multiple accounts
   const loadTrades = async () => {
-    if (!currentProfile?.id) {
-      console.log('Trading Journal: No profile selected, clearing trades')
+    if (selectedAccountIds.size === 0 || !authUser?.uid) {
+      console.log('Trading Journal: No accounts selected, clearing trades')
       setTrades([])
       return
     }
 
     try {
-      console.log(`Trading Journal: Loading trades for profile ${currentProfile.id}`)
-      console.log('Trading Journal: Current profile details:', currentProfile)
+      console.log(`Trading Journal: Loading trades for ${selectedAccountIds.size} account(s)`)
       setTradesLoading(true)
-      const profileTrades = await getTradesByProfile(currentProfile.id)
-      console.log(`Trading Journal: Loaded ${profileTrades.length} trades for profile ${currentProfile.id}`)
-      console.log('Trading Journal: Loaded trade IDs:', profileTrades.map(t => t.id))
-      console.log('Trading Journal: Raw trades data:', profileTrades)
       
-      // Filter out any invalid trades before setting state
-      const validTrades = profileTrades.filter(trade => 
-        trade && typeof trade === 'object' && trade.id && trade.id.trim() !== ''
-      )
+      // Load trades from all selected accounts
+      const allTrades: Trade[] = []
       
-      if (validTrades.length !== profileTrades.length) {
-        console.warn(`Trading Journal: Filtered out ${profileTrades.length - validTrades.length} invalid trades`)
+      for (const accountLinkId of selectedAccountIds) {
+        const account = linkedAccounts.find(acc => acc.id === accountLinkId)
+        if (!account) continue
+        
+        // Get the actual MT5 account ID
+        let accountId = account.mt5AccountId
+        if (!accountId && account.copyTradingAccountId) {
+          // For copy trading, get the MetaAPI account ID from master strategy
+          try {
+            const { listUserCopyTradingAccounts } = await import('@/lib/copyTradingRepo')
+            const { getMasterStrategy } = await import('@/lib/copyTradingRepo')
+            const copyAccounts = await listUserCopyTradingAccounts(authUser.uid)
+            const copyAccount = copyAccounts.find(acc => acc.accountId === account.copyTradingAccountId)
+            if (copyAccount) {
+              const masterStrategy = await getMasterStrategy(copyAccount.strategyId)
+              accountId = masterStrategy?.accountId
+            }
+          } catch (error) {
+            console.error('Error getting account ID for copy trading:', error)
+          }
+        }
+
+        if (!accountId) {
+          console.log(`Trading Journal: No account ID found for ${accountLinkId}`)
+          continue
+        }
+
+        try {
+          console.log(`Trading Journal: Loading trades for account ${accountId} (${account.accountName})`)
+          const accountTrades = await getTradesByAccount(authUser.uid, accountId)
+          console.log(`Trading Journal: Loaded ${accountTrades.length} trades for account ${accountId}`)
+          
+          // Filter out any invalid trades
+          const validTrades = accountTrades.filter(trade => 
+            trade && typeof trade === 'object' && trade.id && trade.id.trim() !== ''
+          )
+          
+          // Add account info to each trade for filtering
+          allTrades.push(...validTrades.map(trade => ({
+            ...trade,
+            accountLinkId: account.id,
+            accountName: account.accountName
+          })))
+        } catch (error) {
+          console.error(`Trading Journal: Error loading trades for account ${accountId}:`, error)
+        }
       }
       
-      console.log('Trading Journal: Setting valid trades to state:', validTrades)
-      setTrades(validTrades)
+      // Remove duplicates based on trade ID (in case same trade appears in multiple accounts)
+      const uniqueTrades = Array.from(
+        new Map(allTrades.map(trade => [trade.id, trade])).values()
+      )
+      
+      console.log(`Trading Journal: Total unique trades loaded: ${uniqueTrades.length} from ${selectedAccountIds.size} account(s)`)
+      setTrades(uniqueTrades)
     } catch (error) {
       console.error('Trading Journal: Error loading trades from Firestore:', error)
       setTrades([])
@@ -134,15 +282,22 @@ function TradingJournalPageContent() {
     }
   }
 
-  // Load trades from Firestore when profile changes
+  // Load accounts on mount
   useEffect(() => {
-    loadTrades()
-  }, [currentProfile?.id])
+    loadAccounts()
+  }, [authUser?.uid])
+
+  // Load trades from Firestore when selected accounts change
+  useEffect(() => {
+    if (selectedAccountIds.size > 0 && linkedAccounts.length > 0) {
+      loadTrades()
+    }
+  }, [selectedAccountIds, linkedAccounts.length, authUser?.uid])
 
   // Reload trades when component becomes visible (user navigates back to page)
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden && currentProfile?.id) {
+      if (!document.hidden && selectedAccountIds.size > 0) {
         console.log('Trading Journal: Page became visible, reloading trades')
         loadTrades()
       }
@@ -150,20 +305,23 @@ function TradingJournalPageContent() {
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [currentProfile?.id])
+  }, [selectedAccountIds.size])
 
   // No need to save to localStorage since we're using Firestore
 
-  // Update newTrade when profile or user changes
+  // Update newTrade when account or user changes
   useEffect(() => {
-    if (currentProfile && userRole) {
+    // Use first selected account or active account
+    const accountToUse = linkedAccounts.find(acc => selectedAccountIds.has(acc.id)) || activeAccount
+    if (accountToUse && authUser) {
       setNewTrade(prev => ({
         ...prev,
-        profileId: currentProfile.id,
-        userId: userRole.userId
+        accountId: accountToUse.mt5AccountId || accountToUse.copyTradingAccountId || '',
+        accountLinkId: accountToUse.id,
+        userId: authUser.uid
       }))
     }
-  }, [currentProfile, userRole])
+  }, [selectedAccountIds, activeAccount, linkedAccounts, authUser])
 
          // Load promotions when viewing admin profiles
          useEffect(() => {
@@ -173,8 +331,8 @@ function TradingJournalPageContent() {
              // 1. Current profile is public (isPublic === true)
              // 2. Current profile belongs to admin (userId !== authUser.uid)
              // 3. User is VIP or Guest (not admin)
-             if (currentProfile?.isPublic && 
-                 currentProfile?.userId !== authUser?.uid && 
+             // Promotions are no longer profile-based
+             if (false && 
                  authUser?.role !== 'admin' && 
                  (authUser?.role === 'vip' || authUser?.role === 'guest')) {
                
@@ -195,10 +353,10 @@ function TradingJournalPageContent() {
              }
            }
 
-           if (currentProfile && authUser) {
-             loadPromotions()
+          if (authUser) {
+            // Promotions loading can be done here if needed
           }
-        }, [currentProfile, authUser])
+        }, [authUser])
 
   // Load currency pairs on mount
   useEffect(() => {
@@ -217,9 +375,20 @@ function TradingJournalPageContent() {
       }
       return true
     })
-    .filter(trade => 
-      currentProfile ? trade.profileId === currentProfile.id : true
-    )
+    .filter(trade => {
+      // Filter by active account if available
+      if (!activeAccount) return true
+      // Check if trade belongs to this account
+      if (activeAccount.mt5AccountId) {
+        return trade.accountId === activeAccount.mt5AccountId
+      }
+      if (activeAccount.copyTradingAccountId) {
+        // For copy trading, we'd need to check the accountId after resolving master strategy
+        // For now, include all trades for the user
+        return trade.userId === authUser?.uid
+      }
+      return trade.userId === authUser?.uid
+    })
     .filter(trade => {
       if (!searchQuery) return true
       const query = searchQuery.toLowerCase()
@@ -300,8 +469,9 @@ function TradingJournalPageContent() {
     time: new Date().toTimeString().slice(0, 5),
     notes: '',
     source: 'MANUAL',
-    profileId: currentProfile?.id || '',
-    userId: userRole?.userId || '',
+    accountId: activeAccount?.mt5AccountId || activeAccount?.copyTradingAccountId || '',
+    accountLinkId: activeAccount?.id || '',
+    userId: authUser?.uid || '',
     ictAnalysis: {
       timeframe: '',
       context: '',
@@ -439,6 +609,257 @@ function TradingJournalPageContent() {
     }
   }
 
+  // Handle incremental sync (default - only new trades since last sync)
+  const handleIncrementalSync = async () => {
+    // Determine which accounts to sync
+    const accountsToSync = syncAccountIds.size > 0 
+      ? Array.from(syncAccountIds).filter(id => selectedAccountIds.has(id))
+      : Array.from(selectedAccountIds)
+    
+    if (accountsToSync.length === 0 || !authUser?.uid) {
+      toast.error('Please select at least one account to sync')
+      return
+    }
+
+    setSyncing(true)
+    setSyncProgress(new Map())
+    
+    const results: Array<{accountId: string, accountName: string, success: boolean, summary?: any, error?: string}> = []
+    
+    // Sync each account sequentially
+    for (const accountLinkId of accountsToSync) {
+      const account = linkedAccounts.find(acc => acc.id === accountLinkId)
+      if (!account) continue
+      
+      try {
+        // Update progress - syncing
+        setSyncProgress(prev => new Map(prev).set(accountLinkId, {
+          status: 'syncing',
+          message: `Syncing ${account.accountName}...`
+        }))
+        
+        const response = await fetch(`/api/accounts/${accountLinkId}/sync`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': authUser.uid,
+            'x-user-email': authUser.email || '',
+          },
+          body: JSON.stringify({
+            mode: 'incremental'
+          }),
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Sync failed')
+        }
+
+        // Update progress - success
+        setSyncProgress(prev => new Map(prev).set(accountLinkId, {
+          status: 'success',
+          message: `Completed: ${data.summary?.tradesImported || 0} imported, ${data.summary?.tradesUpdated || 0} updated`,
+          summary: {
+            tradesImported: data.summary?.tradesImported || 0,
+            tradesUpdated: data.summary?.tradesUpdated || 0
+          }
+        }))
+        
+        results.push({
+          accountId: accountLinkId,
+          accountName: account.accountName,
+          success: true,
+          summary: data.summary
+        })
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to sync trades'
+        // Update progress - error
+        setSyncProgress(prev => new Map(prev).set(accountLinkId, {
+          status: 'error',
+          message: `Failed: ${errorMessage}`
+        }))
+        
+        results.push({
+          accountId: accountLinkId,
+          accountName: account.accountName,
+          success: false,
+          error: errorMessage
+        })
+      }
+    }
+    
+    // Show summary toast
+    const successCount = results.filter(r => r.success).length
+    const failCount = results.filter(r => !r.success).length
+    
+    if (successCount > 0 && failCount === 0) {
+      const totalImported = results.reduce((sum, r) => sum + (r.summary?.tradesImported || 0), 0)
+      const totalUpdated = results.reduce((sum, r) => sum + (r.summary?.tradesUpdated || 0), 0)
+      toast.success(
+        `${successCount} account${successCount > 1 ? 's' : ''} synced: ${totalImported} imported, ${totalUpdated} updated`
+      )
+    } else if (successCount > 0 && failCount > 0) {
+      toast.warning(
+        `${successCount} account${successCount > 1 ? 's' : ''} synced successfully, ${failCount} failed`
+      )
+    } else {
+      toast.error(`All syncs failed`)
+    }
+    
+    // Reload trades after all syncs complete
+    await loadTrades()
+    
+    // Update last sync time
+    setLastSyncAt(new Date().toISOString())
+    
+    setSyncing(false)
+  }
+
+  // Handle full sync - opens modal for date selection
+  const handleFullSyncClick = () => {
+    // Determine which accounts to sync
+    const accountsToSync = syncAccountIds.size > 0 
+      ? Array.from(syncAccountIds).filter(id => selectedAccountIds.has(id))
+      : Array.from(selectedAccountIds)
+    
+    if (accountsToSync.length === 0 || !authUser?.uid) {
+      toast.error('Please select at least one account to sync')
+      return
+    }
+    
+    setShowFullSyncModal(true)
+    // Set default dates
+    if (!fullSyncStartDate) {
+      setFullSyncStartDate(new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)) // 1 year ago
+    }
+    if (!fullSyncEndDate) {
+      setFullSyncEndDate(new Date())
+    }
+  }
+
+  // Execute full sync with selected date range
+  const executeFullSync = async (dateRange: 'default' | 'custom' | 'all', startDate?: Date, endDate?: Date) => {
+    // Determine which accounts to sync
+    const accountsToSync = syncAccountIds.size > 0 
+      ? Array.from(syncAccountIds).filter(id => selectedAccountIds.has(id))
+      : Array.from(selectedAccountIds)
+    
+    if (accountsToSync.length === 0 || !authUser?.uid) {
+      toast.error('Please select at least one account to sync')
+      return
+    }
+
+    setSyncing(true)
+    setShowFullSyncModal(false)
+    setSyncProgress(new Map())
+    
+    // Prepare date range based on selection
+    let startDateStr: string | null = null
+    let endDateStr: string | null = null
+    
+    if (dateRange === 'all') {
+      startDateStr = 'all'
+    } else if (dateRange === 'custom' && startDate && endDate) {
+      startDateStr = startDate.toISOString().split('T')[0]
+      endDateStr = endDate.toISOString().split('T')[0]
+    }
+    // For 'default', don't send dates (API will use 1-year default for full sync)
+    
+    const results: Array<{accountId: string, accountName: string, success: boolean, summary?: any, error?: string}> = []
+    
+    // Sync each account sequentially
+    for (const accountLinkId of accountsToSync) {
+      const account = linkedAccounts.find(acc => acc.id === accountLinkId)
+      if (!account) continue
+      
+      try {
+        // Update progress - syncing
+        setSyncProgress(prev => new Map(prev).set(accountLinkId, {
+          status: 'syncing',
+          message: `Syncing ${account.accountName}...`
+        }))
+        
+        const response = await fetch(`/api/accounts/${accountLinkId}/sync`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': authUser.uid,
+            'x-user-email': authUser.email || '',
+          },
+          body: JSON.stringify({
+            mode: 'full',
+            startDate: startDateStr,
+            endDate: endDateStr
+          }),
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Sync failed')
+        }
+
+        // Update progress - success
+        setSyncProgress(prev => new Map(prev).set(accountLinkId, {
+          status: 'success',
+          message: `Completed: ${data.summary?.tradesImported || 0} imported, ${data.summary?.tradesUpdated || 0} updated`,
+          summary: {
+            tradesImported: data.summary?.tradesImported || 0,
+            tradesUpdated: data.summary?.tradesUpdated || 0
+          }
+        }))
+        
+        results.push({
+          accountId: accountLinkId,
+          accountName: account.accountName,
+          success: true,
+          summary: data.summary
+        })
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to sync trades'
+        // Update progress - error
+        setSyncProgress(prev => new Map(prev).set(accountLinkId, {
+          status: 'error',
+          message: `Failed: ${errorMessage}`
+        }))
+        
+        results.push({
+          accountId: accountLinkId,
+          accountName: account.accountName,
+          success: false,
+          error: errorMessage
+        })
+      }
+    }
+    
+    // Show summary toast
+    const successCount = results.filter(r => r.success).length
+    const failCount = results.filter(r => !r.success).length
+    
+    if (successCount > 0 && failCount === 0) {
+      const totalImported = results.reduce((sum, r) => sum + (r.summary?.tradesImported || 0), 0)
+      const totalUpdated = results.reduce((sum, r) => sum + (r.summary?.tradesUpdated || 0), 0)
+      toast.success(
+        `${successCount} account${successCount > 1 ? 's' : ''} synced: ${totalImported} imported, ${totalUpdated} updated`
+      )
+    } else if (successCount > 0 && failCount > 0) {
+      toast.warning(
+        `${successCount} account${successCount > 1 ? 's' : ''} synced successfully, ${failCount} failed`
+      )
+    } else {
+      toast.error(`All syncs failed`)
+    }
+    
+    // Reload trades after all syncs complete
+    await loadTrades()
+    
+    // Update last sync time
+    setLastSyncAt(new Date().toISOString())
+    
+    setSyncing(false)
+  }
+
   const handleAddTrade = () => {
     if (isAddingTrade) {
       setIsAddingTrade(false)
@@ -460,8 +881,9 @@ function TradingJournalPageContent() {
         time: new Date().toTimeString().slice(0, 5),
         notes: '',
         source: 'MANUAL',
-        profileId: currentProfile?.id || '',
-        userId: userRole?.userId || '',
+        accountId: activeAccount?.mt5AccountId || activeAccount?.copyTradingAccountId || '',
+        accountLinkId: activeAccount?.id || '',
+        userId: authUser?.uid || '',
         tradingViewLink: '',
         ictAnalysis: {
           timeframe: '',
@@ -493,8 +915,8 @@ function TradingJournalPageContent() {
       return
     }
 
-    if (!currentProfile?.id || !userRole?.userId) {
-      alert('Profile or user information missing')
+    if (!activeAccount?.id || !authUser?.uid) {
+      alert('Account or user information missing')
       return
     }
     
@@ -542,8 +964,9 @@ function TradingJournalPageContent() {
         profit: correctCalculation.profit,
         rr: correctCalculation.rr,
         result: correctCalculation.result,
-        profileId: currentProfile.id,
-        userId: userRole.userId
+        accountId: activeAccount.mt5AccountId || activeAccount.copyTradingAccountId || '',
+        accountLinkId: activeAccount.id,
+        userId: authUser.uid
       }
       
       console.log('Trading Journal: Final trade data to save:', tradeDataToSave)
@@ -630,7 +1053,7 @@ function TradingJournalPageContent() {
       }
       
       // Reset form
-      console.log('Trading Journal: Resetting form, currentProfile:', currentProfile, 'userRole:', userRole)
+      console.log('Trading Journal: Resetting form, activeAccount:', activeAccount)
       setNewTrade({
         id: '',
         pair: '',
@@ -648,8 +1071,9 @@ function TradingJournalPageContent() {
         time: new Date().toTimeString().slice(0, 5),
         notes: '',
         source: 'MANUAL',
-        profileId: currentProfile?.id || '',
-        userId: userRole?.userId || '',
+        accountId: activeAccount?.mt5AccountId || activeAccount?.copyTradingAccountId || '',
+        accountLinkId: activeAccount?.id || '',
+        userId: authUser?.uid || '',
         tradingViewLink: '',
         ictAnalysis: {
           timeframe: '',
@@ -897,33 +1321,33 @@ function TradingJournalPageContent() {
 
 
   // Loading state
-  if (profileLoading) {
+  if (accountsLoading) {
     return (
       <div className="flex items-center justify-center min-h-96">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-red-200 border-t-red-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-600 dark:text-slate-400">Loading trading profiles...</p>
+          <p className="text-slate-600 dark:text-slate-400">Loading accounts...</p>
         </div>
       </div>
     )
   }
 
-  // No profile selected
-  if (!currentProfile) {
+  // No account linked
+  if (!activeAccount) {
     return (
       <div className="space-y-8">
         <div className="text-center py-12">
           <User className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">No Profile Selected</h2>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">No Account Linked</h2>
           <p className="text-slate-600 dark:text-slate-400 mb-6">
-            Please select a trading profile to view and manage trades.
+            Please link an MT5 account or copy trading account to view and manage trades.
           </p>
-          <ProfileSelector 
-            onCreateProfile={() => {
-              router.push('/dashboard/profiles')
+          <AccountSelector 
+            onAccountLinked={async () => {
+              await loadAccounts()
             }}
-            onManageProfiles={() => {
-              router.push('/dashboard/profiles')
+            onAccountChanged={(accountLinkId) => {
+              loadTrades()
             }}
           />
         </div>
@@ -932,129 +1356,313 @@ function TradingJournalPageContent() {
   }
 
   // Debug: Log current state
-  console.log('Trading Journal: Component render - currentProfile:', currentProfile?.id, 'trades count:', trades.length, 'isLoading:', tradesLoading)
+  console.log('Trading Journal: Component render - activeAccount:', activeAccount?.id, 'trades count:', trades.length, 'isLoading:', tradesLoading)
+
+  // Calculate stats for StatsCard display - Only show OPEN trades stats
+  // Closed trades stats are in the Closed Trades page
+  const openTradesOnly = trades.filter(t => t.status === 'OPEN')
+  const allTradesCount = openTradesOnly.length
+  const profitableTradesCount = openTradesOnly.filter(t => (t.profit || 0) > 0).length
+  const overallWinRate = allTradesCount > 0 ? ((profitableTradesCount / allTradesCount) * 100).toFixed(0) : '0'
+  const netProfit = openTradesOnly.reduce((sum, t) => sum + (t.profit || 0), 0)
+  const closedTradesCount = trades.filter(t => t.status !== 'OPEN').length
 
   return (
-    <div className="space-y-8">
-      {/* Trading Journal Management */}
-      <Card className="bg-gradient-to-br from-white to-red-50/30 dark:from-black dark:to-red-900/10 border-red-500/30 dark:border-red-500/50 shadow-xl shadow-red-500/20">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <BookOpen className="w-6 h-6 text-red-500" />
-                Trading Journal Management
-              </CardTitle>
-              <CardDescription className="text-slate-600 dark:text-slate-400 mt-2">
-                Pro
-              </CardDescription>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              {/* Refresh Button */}
-              <Button
-                onClick={loadTrades}
-                disabled={tradesLoading}
-                variant="outline"
-                size="sm"
-                className="border-red-200 dark:border-red-800/50 hover:bg-red-50 dark:hover:bg-red-900/20"
-              >
-                {tradesLoading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin mr-2" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <Database className="w-4 h-4 mr-2" />
-                    Refresh Trades
-                  </>
-                )}
-              </Button>
-              
-              {/* Profile Selector */}
-              <ProfileSelector 
-                onCreateProfile={() => {
-                  router.push('/dashboard/profiles')
-                }}
-                onManageProfiles={() => {
-                  router.push('/dashboard/profiles')
-                }}
-              />
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-100 text-sm font-medium">Win Rate</p>
-                <p className="text-3xl font-bold">{winRate.toFixed(1)}%</p>
-              </div>
-              <TrendingUp className="w-8 h-8 text-green-200" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-red-100 text-sm font-medium">Total Trades</p>
-                <p className="text-3xl font-bold">{totalTrades}</p>
-              </div>
-              <BarChart3 className="w-8 h-8 text-red-200" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-purple-100 text-sm font-medium">Total Pips</p>
-                <p className="text-3xl font-bold">{totalPips.toFixed(1)}</p>
-              </div>
-              <Target className="w-8 h-8 text-purple-200" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-orange-100 text-sm font-medium">Total Profit</p>
-                <p className="text-3xl font-bold">${totalProfit.toFixed(2)}</p>
-              </div>
-              <DollarSign className="w-8 h-8 text-orange-200" />
-            </div>
-          </CardContent>
-        </Card>
+    <div className="max-w-7xl mx-auto space-y-6 w-full box-border">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <BookOpen className="h-6 w-6 text-blue-500" />
+            Trading Journal
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            Track and analyze your trading performance
+          </p>
+        </div>
+        
+        {/* Account selector will be shown below */}
       </div>
 
-      {/* Add Trade Button */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-          Trade Entries
-          {currentProfile && (
-            <span className="text-sm font-normal text-slate-500 dark:text-slate-400 ml-2">
-              ({currentProfile.name})
-            </span>
-          )}
-        </h2>
-        <Button
-          onClick={handleAddTrade}
-          disabled={!canEdit() || profileLoading || !authUser || (authUser.role !== 'admin' && authUser.role !== 'vip')}
-          className="bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-700 hover:to-orange-600 text-white shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <PlusIcon className="w-4 h-4 mr-2" />
-          {isAddingTrade ? 'Cancel' : 'Add New Trade'}
-        </Button>
+
+      {/* Account Linking & Sync */}
+      <div className="space-y-4">
+        <AccountSelector 
+          onAccountLinked={async () => {
+            // Reload accounts and trades
+            await loadAccounts()
+            await loadTrades()
+          }}
+          onAccountChanged={(accountLinkId) => {
+            // Reload trades when account changes
+            loadTrades()
+          }}
+        />
+        
+        {/* Multiple Account Selector */}
+        {linkedAccounts.length > 1 && (
+          <Card>
+            <CardContent className="p-4">
+              <Label className="text-sm font-medium mb-3 block">Select Accounts to View</Label>
+              <div className="space-y-2">
+                {linkedAccounts.map((account) => (
+                  <div key={account.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`account-${account.id}`}
+                      checked={selectedAccountIds.has(account.id)}
+                      onCheckedChange={(checked) => {
+                        const newSelected = new Set(selectedAccountIds)
+                        if (checked) {
+                          newSelected.add(account.id)
+                        } else {
+                          newSelected.delete(account.id)
+                        }
+                        setSelectedAccountIds(newSelected)
+                      }}
+                    />
+                    <label
+                      htmlFor={`account-${account.id}`}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>{account.accountName}</span>
+                        <Badge variant={account.isActive ? 'default' : 'secondary'} className="ml-2">
+                          {account.accountType}
+                        </Badge>
+                      </div>
+                    </label>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
+                {selectedAccountIds.size === 0 
+                  ? 'Select at least one account to view trades'
+                  : `Viewing trades from ${selectedAccountIds.size} account${selectedAccountIds.size > 1 ? 's' : ''}`
+                }
+              </p>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* Sync Controls */}
+        {selectedAccountIds.size > 0 && (
+          <Card>
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white">Sync Trades</p>
+                  {lastSyncAt && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Last sync: {new Date(lastSyncAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+              
+              {/* Account Selection for Sync */}
+              {linkedAccounts.length > 1 && (
+                <div className="space-y-2 p-3 bg-gray-50 dark:bg-gray-900/20 rounded-lg border border-gray-200 dark:border-gray-800">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Select Accounts to Sync</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          setSyncAccountIds(new Set(selectedAccountIds))
+                        }}
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          setSyncAccountIds(new Set())
+                        }}
+                      >
+                        Deselect All
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {linkedAccounts
+                      .filter(acc => selectedAccountIds.has(acc.id))
+                      .map((account) => (
+                        <div key={account.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`sync-account-${account.id}`}
+                            checked={syncAccountIds.has(account.id)}
+                            onCheckedChange={(checked) => {
+                              const newSyncAccounts = new Set(syncAccountIds)
+                              if (checked) {
+                                newSyncAccounts.add(account.id)
+                              } else {
+                                newSyncAccounts.delete(account.id)
+                              }
+                              setSyncAccountIds(newSyncAccounts)
+                            }}
+                            disabled={syncing}
+                          />
+                          <label
+                            htmlFor={`sync-account-${account.id}`}
+                            className="text-sm font-medium leading-none cursor-pointer flex-1"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span>{account.accountName}</span>
+                              <Badge variant={account.isActive ? 'default' : 'secondary'} className="ml-2 text-xs">
+                                {account.accountType}
+                              </Badge>
+                            </div>
+                          </label>
+                        </div>
+                      ))}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {syncAccountIds.size === 0 
+                      ? 'Select at least one account to sync'
+                      : `${syncAccountIds.size} account${syncAccountIds.size > 1 ? 's' : ''} selected for sync`
+                    }
+                  </p>
+                </div>
+              )}
+              
+              {/* Sync Buttons */}
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  onClick={handleIncrementalSync}
+                  disabled={syncing || (syncAccountIds.size === 0 && linkedAccounts.length > 1)}
+                  variant="default"
+                  className="w-full"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+                  {syncing 
+                    ? 'Syncing...' 
+                    : linkedAccounts.length > 1 && syncAccountIds.size > 0
+                      ? `Quick Sync (${syncAccountIds.size} account${syncAccountIds.size > 1 ? 's' : ''})`
+                      : linkedAccounts.length > 1
+                        ? 'Quick Sync (Select accounts)'
+                        : 'Quick Sync'
+                  }
+                </Button>
+                <Button
+                  onClick={handleFullSyncClick}
+                  disabled={syncing || (syncAccountIds.size === 0 && linkedAccounts.length > 1)}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <CalendarIcon className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+                  {syncing 
+                    ? 'Syncing...' 
+                    : linkedAccounts.length > 1 && syncAccountIds.size > 0
+                      ? `Full Sync (${syncAccountIds.size} account${syncAccountIds.size > 1 ? 's' : ''})`
+                      : linkedAccounts.length > 1
+                        ? 'Full Sync (Select accounts)'
+                        : 'Full Sync'
+                  }
+                </Button>
+              </div>
+              
+              {/* Sync Progress */}
+              {syncProgress.size > 0 && (
+                <div className="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <Label className="text-sm font-medium">Sync Progress</Label>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {Array.from(syncProgress.entries()).map(([accountId, progress]) => {
+                      const account = linkedAccounts.find(acc => acc.id === accountId)
+                      if (!account) return null
+                      
+                      return (
+                        <div
+                          key={accountId}
+                          className={`p-2 rounded-lg border ${
+                            progress.status === 'success'
+                              ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                              : progress.status === 'error'
+                              ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                              : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {progress.status === 'syncing' && (
+                              <RefreshCw className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400" />
+                            )}
+                            {progress.status === 'success' && (
+                              <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
+                            )}
+                            {progress.status === 'error' && (
+                              <XCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{account.accountName}</p>
+                              <p className={`text-xs ${
+                                progress.status === 'success'
+                                  ? 'text-green-700 dark:text-green-300'
+                                  : progress.status === 'error'
+                                  ? 'text-red-700 dark:text-red-300'
+                                  : 'text-blue-700 dark:text-blue-300'
+                              }`}>
+                                {progress.message}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {/* Improved Sync Mode Explanations */}
+              <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="flex-shrink-0">
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900/40 rounded-lg">
+                      <ZapIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                        Quick Sync
+                      </p>
+                      <Badge variant="default" className="bg-blue-600 text-white text-xs">
+                        Recommended
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-blue-700 dark:text-blue-300 mb-2">
+                      Only fetches new trades since your last sync. Fast, saves API credits, and perfect for regular updates.
+                    </p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                      💡 Best for: Daily updates, checking new trades
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-900/20 rounded-lg border border-gray-200 dark:border-gray-800">
+                  <div className="flex-shrink-0">
+                    <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                      <CalendarIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
+                      Full Sync
+                    </p>
+                    <p className="text-xs text-gray-700 dark:text-gray-300 mb-2">
+                      Fetches all trades in a date range you choose. Use when you need complete historical data or after linking a new account.
+                    </p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">
+                      💡 Best for: First-time setup, complete history, specific date ranges
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Promotional Offers - Only shown to VIP/Guest viewing admin profiles */}
@@ -1065,19 +1673,20 @@ function TradingJournalPageContent() {
         />
       )}
       
-      {/* Add/Edit Trade Form */}
-      {isAddingTrade && (
-        <Card className="bg-white/80 dark:bg-black/90 backdrop-blur-sm border-red-500/30 dark:border-red-500/50 shadow-xl shadow-red-500/20">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold text-slate-900 dark:text-white flex items-center">
-              <Brain className="w-5 h-5 mr-2 text-red-500" />
+      {/* Add/Edit Trade Form - Only for editing existing trades */}
+      {isAddingTrade && editingTrade && (
+        <Card variant="glass">
+          <CardDecorativeOrb color="green" />
+          <CardHeader className="relative z-10">
+            <CardTitle className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+              <Brain className="w-5 h-5 mr-2 text-green-500" />
               {editingTrade ? 'Edit Trade' : 'New Trade Entry'}
             </CardTitle>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Fill in the trade details below. Pips and profit will be calculated automatically.
             </p>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="relative z-10 space-y-6">
             {/* Essential Trade Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-2">
@@ -1513,420 +2122,158 @@ function TradingJournalPageContent() {
         </Card>
       )}
 
-      {/* Trades List */}
-      <div className="space-y-4">
-        {tradesLoading ? (
-          <Card className="bg-white/80 dark:bg-black/90 backdrop-blur-sm border-red-500/30 dark:border-red-500/50 shadow-xl shadow-red-500/20">
-            <CardContent className="text-center py-12">
-              <div className="w-8 h-8 border-4 border-red-200 border-t-red-600 rounded-full animate-spin mx-auto mb-4"></div>
-              <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-2">Loading trades...</h3>
-              <p className="text-slate-500 dark:text-slate-400">
-                Please wait while we fetch the trades for this profile.
-              </p>
-            </CardContent>
-          </Card>
-        ) : trades.length === 0 ? (
-          <Card className="bg-white/80 dark:bg-black/90 backdrop-blur-sm border-red-500/30 dark:border-red-500/50 shadow-xl shadow-red-500/20">
-            <CardContent className="text-center py-12">
-              <BookOpen className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-2">No trades recorded</h3>
-              <p className="text-slate-500 dark:text-slate-400">
-                Start by adding your first trade analysis above.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {/* Search and Filter Bar */}
-            <Card className="bg-white/80 dark:bg-black/90 backdrop-blur-sm border-red-500/30 dark:border-red-500/50">
-              <CardContent className="p-4">
-                <div className="flex items-center space-x-4">
-                  <div className="flex-1">
-                    <Input
-                      placeholder="Search trades by pair, type, or notes..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="bg-white dark:bg-black/90 border-red-500/30 dark:border-red-500/50"
-                    />
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Select value={sortBy} onValueChange={setSortBy}>
-                      <SelectTrigger className="w-40 bg-white dark:bg-black/90 border-red-500/30 dark:border-red-500/50">
-                        <SelectValue placeholder="Sort by" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="date">Date</SelectItem>
-                        <SelectItem value="pair">Pair</SelectItem>
-                        <SelectItem value="pips">Pips</SelectItem>
-                        <SelectItem value="profit">Profit</SelectItem>
-                        <SelectItem value="rr">R:R Ratio</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                      className="bg-white dark:bg-black/90 border-red-500/30 dark:border-red-500/50"
-                    >
-                      {sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </Button>
-                  </div>
+
+      {/* Full Sync Modal */}
+      <Dialog open={showFullSyncModal} onOpenChange={setShowFullSyncModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarIcon className="w-5 h-5" />
+              Full Sync - Select Date Range
+            </DialogTitle>
+            <DialogDescription>
+              Choose the date range for syncing all trades. This will fetch complete historical data.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Show which accounts will be synced */}
+            {linkedAccounts.length > 1 && (
+              <div className="space-y-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <Label className="text-sm font-medium">Accounts to Sync</Label>
+                <div className="space-y-1">
+                  {(syncAccountIds.size > 0 
+                    ? Array.from(syncAccountIds).filter(id => selectedAccountIds.has(id))
+                    : Array.from(selectedAccountIds)
+                  ).map((accountId) => {
+                    const account = linkedAccounts.find(acc => acc.id === accountId)
+                    if (!account) return null
+                    return (
+                      <div key={accountId} className="flex items-center gap-2 text-sm">
+                        <CheckCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        <span className="font-medium">{account.accountName}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {account.accountType}
+                        </Badge>
+                      </div>
+                    )
+                  })}
                 </div>
-              </CardContent>
-            </Card>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                  {syncAccountIds.size > 0 
+                    ? `${syncAccountIds.size} account${syncAccountIds.size > 1 ? 's' : ''} selected`
+                    : `All ${selectedAccountIds.size} selected account${selectedAccountIds.size > 1 ? 's' : ''} will be synced`
+                  }
+                </p>
+              </div>
+            )}
+            
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Date Range Option</Label>
+              <Select 
+                value={syncDateRange} 
+                onValueChange={(value) => {
+                  setSyncDateRange(value as 'default' | 'custom' | 'all')
+                  if (value === 'default') {
+                    setFullSyncStartDate(new Date(Date.now() - 365 * 24 * 60 * 60 * 1000))
+                    setFullSyncEndDate(new Date())
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Last 1 Year (Default)</SelectItem>
+                  <SelectItem value="custom">Custom Date Range</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-            {/* Excel-Style Trade Table */}
-            <Card className="bg-white/80 dark:bg-black/90 backdrop-blur-sm border-red-500/30 dark:border-red-500/50 shadow-xl shadow-red-500/20">
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    {/* Table Header */}
-                    <thead className="bg-slate-50 dark:bg-red-900/20 border-b border-red-500/30 dark:border-red-500/50 sticky top-0 z-10">
-                      <tr>
-                        <th className="text-left py-3 px-4 font-semibold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide border-r border-red-500/30 dark:border-red-500/50">
-                          #
-                        </th>
-                        <th className="text-left py-3 px-4 font-semibold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide border-r border-red-500/30 dark:border-red-500/50">
-                          Date/Time
-                        </th>
-                        <th className="text-left py-3 px-4 font-semibold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide border-r border-red-500/30 dark:border-red-500/50">
-                          Pair
-                        </th>
-                        <th className="text-left py-3 px-4 font-semibold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide border-r border-red-500/30 dark:border-red-500/50">
-                          Type
-                        </th>
-                        <th className="text-right py-3 px-4 font-semibold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide border-r border-red-500/30 dark:border-red-500/50">
-                          Entry
-                        </th>
-                        <th className="text-right py-3 px-4 font-semibold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide border-r border-red-500/30 dark:border-red-500/50">
-                          Exit
-                        </th>
-                        <th className="text-right py-3 px-4 font-semibold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide border-r border-red-500/30 dark:border-red-500/50">
-                          Pips
-                        </th>
-                        <th className="text-right py-3 px-4 font-semibold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide border-r border-red-500/30 dark:border-red-500/50">
-                          P&L
-                        </th>
-                        <th className="text-right py-3 px-4 font-semibold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide border-r border-red-500/30 dark:border-red-500/50">
-                          R:R
-                        </th>
-                        <th className="text-center py-3 px-4 font-semibold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide border-r border-red-500/30 dark:border-red-500/50">
-                          Status
-                        </th>
-                        <th className="text-center py-3 px-4 font-semibold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    
-                    {/* Table Body */}
-                    <tbody>
-                      {filteredTrades.map((trade, index) => {
-                        // Skip trades without valid IDs
-                        if (!trade || typeof trade !== 'object' || !trade.id || trade.id.trim() === '') {
-                          if (trade && typeof trade === 'object') {
-                            console.warn('Trading Journal: Skipping trade without valid ID:', trade)
-                          }
-                          return null
-                        }
-                        
-                        const isExpanded = expandedTrades.has(trade.id)
-                        const canEdit = (currentProfile?.userId === authUser?.uid || authUser?.role === 'admin')
-                        
-                        // Debug: Log trade ID for each row
-                        if (index === 0) {
-                          console.log('Trading Journal: Rendering trades with IDs:', filteredTrades.map(t => t.id))
-                        }
-                        
-                        return (
-                          <React.Fragment key={trade.id}>
-                            {/* Main Trade Row */}
-                            <tr 
-                              className={`border-b border-red-500/30 dark:border-red-500/50 hover:bg-slate-50 dark:hover:bg-red-900/20 transition-colors cursor-pointer ${
-                                index % 2 === 0 ? 'bg-white dark:bg-black/90' : 'bg-slate-50/50 dark:bg-red-900/10'
-                              }`}
-                              onClick={() => canEdit && toggleTradeExpansion(trade.id)}
-                            >
-                              {/* Row Number */}
-                              <td className="py-3 px-4 text-sm text-slate-600 dark:text-slate-400 font-mono border-r border-red-500/30 dark:border-red-500/50">
-                                {index + 1}
-                              </td>
-                              
-                              {/* Date/Time */}
-                              <td className="py-3 px-4 border-r border-red-500/30 dark:border-red-500/50">
-                                <div className="text-sm text-slate-900 dark:text-white">
-                                  <div className="font-medium">{new Date(trade.date).toLocaleDateString()}</div>
-                                  <div className="text-xs text-slate-500 dark:text-slate-400">{trade.time}</div>
-                                </div>
-                              </td>
-                              
-                              {/* Pair */}
-                              <td className="py-3 px-4 border-r border-red-500/30 dark:border-red-500/50">
-                                <div className="flex items-center space-x-2">
-                                  {getCategoryIcon(getCurrencyPair(trade.pair)?.category || 'forex')}
-                                  <span className="font-bold text-slate-900 dark:text-white">{trade.pair}</span>
-                                </div>
-                              </td>
-                              
-                              {/* Type */}
-                              <td className="py-3 px-4 border-r border-red-500/30 dark:border-red-500/50">
-                                <Badge className={getTypeColor(trade.type)}>
-                                  {trade.type}
-                                </Badge>
-                              </td>
-                              
-                              {/* Entry Price */}
-                              <td className="py-3 px-4 text-right border-r border-red-500/30 dark:border-red-500/50">
-                                <span className="font-mono text-sm text-slate-900 dark:text-white">
-                                  {trade.entryPrice.toFixed(4)}
-                                </span>
-                              </td>
-                              
-                              {/* Exit Price */}
-                              <td className="py-3 px-4 text-right border-r border-red-500/30 dark:border-red-500/50">
-                                <span className="font-mono text-sm text-slate-900 dark:text-white">
-                                  {trade.exitPrice.toFixed(4)}
-                                </span>
-                              </td>
-                              
-                              {/* Pips */}
-                              <td className="py-3 px-4 text-right border-r border-red-500/30 dark:border-red-500/50">
-                                <span className={`font-mono text-sm font-bold ${trade.pips >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                  {trade.pips >= 0 ? '+' : ''}{trade.pips.toFixed(1)}
-                                </span>
-                              </td>
-                              
-                              {/* Profit/Loss */}
-                              <td className="py-3 px-4 text-right border-r border-red-500/30 dark:border-red-500/50">
-                                <span className={`font-mono text-sm font-bold ${trade.profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                  ${trade.profit >= 0 ? '+' : ''}{trade.profit.toFixed(2)}
-                                </span>
-                              </td>
-                              
-                              {/* R:R Ratio */}
-                              <td className="py-3 px-4 text-right border-r border-red-500/30 dark:border-red-500/50">
-                                <span className="font-mono text-sm text-slate-900 dark:text-white">
-                                  {trade.rr.toFixed(2)}:1
-                                </span>
-                              </td>
-                              
-                              {/* Status */}
-                              <td className="py-3 px-4 text-center border-r border-red-500/30 dark:border-red-500/50">
-                                <div className="flex items-center justify-center">
-                                  {canEdit ? (
-                                    <div className="flex flex-col space-y-1">
-                                      <Select 
-                                        value={trade.status} 
-                                        onValueChange={(value) => {
-                                          console.log('Dropdown triggered - Trade ID:', trade.id, 'Trade object:', trade)
-                                          console.log('New status:', value)
-                                          console.log('All trade IDs in current state:', trades.map(t => t.id))
-                                          handleStatusChange(trade.id, value)
-                                        }}
-                                      >
-                                        <SelectTrigger className="w-32 h-8 text-xs">
-                                          <SelectValue placeholder="Select status" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="OPEN">OPEN</SelectItem>
-                                          <SelectItem value="CLOSED">CLOSED</SelectItem>
-                                          <SelectItem value="LOSS">LOSS</SelectItem>
-                                          <SelectItem value="BREAKEVEN">BREAKEVEN</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                      <div className="text-xs text-center">
-                                        {trade.status === 'OPEN' && <span className="text-yellow-600">●</span>}
-                                        {trade.status === 'CLOSED' && <span className="text-green-600">●</span>}
-                                        {trade.status === 'LOSS' && <span className="text-red-600">●</span>}
-                                        {trade.status === 'BREAKEVEN' && <span className="text-gray-600">●</span>}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center justify-center space-x-2">
-                                      <Badge className={getStatusColor(trade.status)}>
-                                        {trade.status}
-                                      </Badge>
-                                      {trade.status !== 'OPEN' && (
-                                        <div className="flex items-center space-x-1">
-                                          {getResultIcon(trade.result)}
-                                          <span className={`text-xs font-medium ${getResultColor(trade.result)}`}>
-                                            {trade.result > 0 ? 'WIN' : trade.result < 0 ? 'LOSS' : 'BREAKEVEN'}
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                              
-                              {/* Actions */}
-                              <td className="py-3 px-4 text-center">
-                                <div className="flex items-center justify-center space-x-1">
-                                  {canEdit && (
-                                    <>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          toggleTradeExpansion(trade.id)
-                                        }}
-                                        className="text-slate-600 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 h-8 w-8 p-0"
-                                      >
-                                        <Info className="w-4 h-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          handleEditTrade(trade)
-                                        }}
-                                        className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
-                                      >
-                                        <EditIcon className="w-4 h-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          setShowDeleteConfirm(trade.id)
-                                        }}
-                                        className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </Button>
-                                    </>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                            
-                            {/* Expanded Row Details */}
-                            {isExpanded && canEdit && (
-                              <tr className="bg-slate-50 dark:bg-red-900/20 border-b border-red-500/30 dark:border-red-500/50">
-                                <td colSpan={11} className="p-6">
-                                  <div className="space-y-6">
-                                    {/* Additional Trade Details */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                      <div>
-                                        <p className="text-sm text-slate-600 dark:text-slate-400">Lot Size</p>
-                                        <p className="text-slate-900 dark:text-white font-medium">{trade.lotSize}</p>
-                                      </div>
-                                      <div>
-                                        <p className="text-sm text-slate-600 dark:text-slate-400">Risk</p>
-                                        <p className="text-slate-900 dark:text-white font-medium">${trade.risk.toFixed(2)}</p>
-                                      </div>
-                                      <div>
-                                        <p className="text-sm text-slate-600 dark:text-slate-400">Source</p>
-                                        <Badge variant="outline">{trade.source || 'MANUAL'}</Badge>
-                                      </div>
-                                      <div>
-                                        <p className="text-sm text-slate-600 dark:text-slate-400">Result</p>
-                                        <div className="flex items-center space-x-1">
-                                          {getResultIcon(trade.result)}
-                                          <span className={getResultColor(trade.result)}>
-                                            {getResultText(trade.result)}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    {/* Chart Analysis */}
-                                    {(trade.chartImage || trade.tradingViewLink) && (
-                                      <div>
-                                        <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-3 flex items-center">
-                                          <Eye className="w-4 h-4 mr-2 text-red-500" />
-                                          Chart Analysis
-                                        </h4>
-                                        
-                                        {trade.chartImage && (
-                                          <div className="mb-4">
-                                            <img
-                                              src={trade.chartImage}
-                                              alt="Trade chart"
-                                              className="max-w-full h-48 object-contain rounded-lg border border-red-500/30 dark:border-red-500/50"
-                                            />
-                                          </div>
-                                        )}
-
-                                        {trade.tradingViewLink && (
-                                          <div className="space-y-2">
-                                            <a
-                                              href={trade.tradingViewLink}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="inline-flex items-center space-x-2 text-sm text-red-600 dark:text-red-400 hover:underline bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800/50"
-                                            >
-                                              <Eye className="w-4 h-4" />
-                                              <span>View on TradingView</span>
-                                            </a>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    {/* ICT Strategy Analysis */}
-                                    {trade.ictAnalysis && (
-                                      <div className="p-4 bg-slate-100 dark:bg-black/80 rounded-lg border border-red-500/20">
-                                        <h4 className="font-semibold text-slate-900 dark:text-white mb-3 flex items-center">
-                                          <Brain className="w-4 h-4 mr-2 text-red-500" />
-                                          ICT Strategy Analysis
-                                        </h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                          <div className="space-y-2">
-                                            <p><span className="text-slate-600 dark:text-slate-400">Timeframe:</span> <span className="text-slate-900 dark:text-white">{trade.ictAnalysis.timeframe}</span></p>
-                                            <p><span className="text-slate-600 dark:text-slate-400">Context:</span> <span className="text-slate-900 dark:text-white">{trade.ictAnalysis.context}</span></p>
-                                            <p><span className="text-slate-600 dark:text-slate-400">Session:</span> <span className="text-slate-900 dark:text-white">{trade.ictAnalysis.sessionKillZone}</span></p>
-                                            <p><span className="text-slate-600 dark:text-slate-400">LTF:</span> <span className="text-slate-900 dark:text-white">{trade.ictAnalysis.lowTimeframe}</span></p>
-                                          </div>
-                                          <div className="space-y-2">
-                                            {trade.ictAnalysis.fvg && <p><span className="text-slate-600 dark:text-slate-400">FVG:</span> <span className="text-slate-900 dark:text-white">{trade.ictAnalysis.fvg}</span></p>}
-                                            {trade.ictAnalysis.breaker && <p><span className="text-slate-600 dark:text-slate-400">Breaker:</span> <span className="text-slate-900 dark:text-white">{trade.ictAnalysis.breaker}</span></p>}
-                                            {trade.ictAnalysis.entry && <p><span className="text-slate-600 dark:text-slate-400">Entry:</span> <span className="text-slate-900 dark:text-white">{trade.ictAnalysis.entry}</span></p>}
-                                          </div>
-                                        </div>
-                                        {trade.ictAnalysis.notes && (
-                                          <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-600">
-                                            <p className="text-sm text-slate-600 dark:text-slate-400">Notes:</p>
-                                            <p className="text-slate-900 dark:text-white">{trade.ictAnalysis.notes}</p>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    {/* Trade Notes */}
-                                    {trade.notes && (
-                                      <div>
-                                        <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Notes</h4>
-                                        <p className="text-slate-900 dark:text-white">{trade.notes}</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+            {syncDateRange === 'custom' && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
+                  <DateTimePicker
+                    value={fullSyncStartDate}
+                    onChange={(date) => setFullSyncStartDate(date)}
+                    showTimeSelect={false}
+                    dateFormat="MMM dd, yyyy"
+                    maxDate={fullSyncEndDate || new Date()}
+                    placeholder="Select start date"
+                  />
                 </div>
-                
-                {/* Table Footer - Simple count only */}
-                {filteredTrades.length > 0 && (
-                  <div className="border-t border-red-500/30 dark:border-red-500/50 bg-slate-50 dark:bg-red-900/20 px-6 py-3">
-                    <div className="text-sm text-slate-600 dark:text-slate-400">
-                      Showing {filteredTrades.length} trade{filteredTrades.length !== 1 ? 's' : ''}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                <div className="space-y-2">
+                  <Label>End Date</Label>
+                  <DateTimePicker
+                    value={fullSyncEndDate}
+                    onChange={(date) => setFullSyncEndDate(date)}
+                    showTimeSelect={false}
+                    dateFormat="MMM dd, yyyy"
+                    minDate={fullSyncStartDate || undefined}
+                    maxDate={new Date()}
+                    placeholder="Select end date"
+                  />
+                </div>
+              </div>
+            )}
+
+            {syncDateRange === 'all' && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  ⚠️ <strong>Warning:</strong> This will sync all available trades from your account history. 
+                  This may take a while for accounts with extensive trading history and will consume more API credits.
+                </p>
+              </div>
+            )}
+
+            {syncDateRange === 'default' && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  ℹ️ This will sync trades from the last 1 year (365 days) up to today.
+                </p>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowFullSyncModal(false)}
+              disabled={syncing}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (syncDateRange === 'custom' && (!fullSyncStartDate || !fullSyncEndDate)) {
+                  toast.error('Please select both start and end dates')
+                  return
+                }
+                executeFullSync(
+                  syncDateRange,
+                  syncDateRange === 'custom' ? fullSyncStartDate || undefined : undefined,
+                  syncDateRange === 'custom' ? fullSyncEndDate || undefined : undefined
+                )
+              }}
+              disabled={syncing || (syncDateRange === 'custom' && (!fullSyncStartDate || !fullSyncEndDate))}
+            >
+              {syncing ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Syncing...
+                </>
+              ) : (
+                <>
+                  <Database className="w-4 h-4 mr-2" />
+                  Start Full Sync
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (

@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CsvImportPanel } from '@/components/admin/CsvImportPanel'
-import { ApiSetupPanel } from '@/components/admin/ApiSetupPanel'
 import { SyncMethodSelector } from '@/components/admin/SyncMethodSelector'
 import { 
   RefreshCw, 
@@ -165,7 +165,24 @@ export default function AdminPage() {
           {syncMethod === 'manual' && <CsvImportPanel />}
 
           {/* API Setup */}
-          {syncMethod === 'api' && <ApiSetupPanel />}
+          {syncMethod === 'api' && (
+            <Card variant="glass">
+              <CardHeader>
+                <CardTitle>MetaAPI Setup Moved</CardTitle>
+                <CardDescription>
+                  Configure MetaAPI credentials and streaming from the dedicated setup page.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <p className="text-sm text-muted-foreground max-w-2xl">
+                  We now manage MetaAPI tokens, account IDs, and streaming controls on a focused page to keep VIP Sync clean.
+                </p>
+                <Button asChild variant="premium">
+                  <Link href="/dashboard/admin/metaapi-setup">Open MetaAPI Setup</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="overview" className="space-y-6">

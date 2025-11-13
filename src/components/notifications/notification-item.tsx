@@ -13,7 +13,8 @@ import {
   ArrowRight,
   Clock,
   Trash2,
-  Check
+  Check,
+  Calendar
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -295,6 +296,3 @@ export function NotificationItem({
     </Card>
   )
 }
-
-// Import Calendar icon
-import { Calendar } from 'lucide-react'

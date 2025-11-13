@@ -53,6 +53,7 @@ import {
   TrendingUp
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { UserNotificationService } from '@/lib/userNotificationService'
 
 const getIcon = (iconName: string) => {
   const iconMap = {
@@ -182,7 +183,43 @@ export default function AdminEventsPage() {
 
       console.log('Event data to be sent:', eventData)
 
-      await createEvent(eventData)
+      const eventId = await createEvent(eventData)
+      console.log('Event created successfully with ID:', eventId)
+      
+      // Send notifications to all users
+      try {
+        console.log('Sending event notification to all users...', {
+          eventId,
+          title: formData.title,
+          message: formData.description || `Check out our new event: ${formData.title}`
+        })
+        
+        const userCount = await UserNotificationService.notifyAllUsers({
+          type: 'event',
+          title: 'New Event Available!',
+          message: formData.description || `Check out our new event: ${formData.title}`,
+          data: {
+            eventId: eventId,
+            soundType: 'promotion',
+            actionUrl: '/dashboard/events'
+          }
+        })
+        
+        console.log(`✅ Event notification sent successfully to ${userCount} users`)
+        if (userCount === 0) {
+          console.warn('⚠️ No users were notified. Check if there are any non-admin users in the database.')
+        }
+      } catch (notificationError: any) {
+        console.error('❌ Error sending notifications:', notificationError)
+        console.error('Error details:', {
+          message: notificationError?.message,
+          stack: notificationError?.stack,
+          code: notificationError?.code
+        })
+        // Don't fail the entire operation if notifications fail
+        toast.error(`Event created but failed to send notifications: ${notificationError?.message || 'Unknown error'}`)
+      }
+
       toast.success('Event created successfully')
       setShowCreateDialog(false)
       resetForm()

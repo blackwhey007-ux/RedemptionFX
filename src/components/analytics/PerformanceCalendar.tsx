@@ -1,19 +1,75 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AnalyticsData } from '@/lib/analyticsService'
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, isSameMonth, isToday, addMonths, subMonths } from 'date-fns'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface PerformanceCalendarProps {
   data: AnalyticsData
 }
 
 export function PerformanceCalendar({ data }: PerformanceCalendarProps) {
-  const { calendarData } = data
+  const { user: authUser } = useAuth()
+  const [apiCalendarData, setApiCalendarData] = useState<Array<{ date: string; profit: number; trades: number }>>([])
+  const [loadingApi, setLoadingApi] = useState(false)
+  
+  // Merge API data with prop data
+  const calendarDataMap = new Map<string, { profit: number; trades: number }>()
+  
+  // Add data from props
+  data.calendarData.forEach(item => {
+    calendarDataMap.set(item.date, { profit: item.profit, trades: item.trades })
+  })
+  
+  // Add/override with API data
+  apiCalendarData.forEach(item => {
+    const existing = calendarDataMap.get(item.date) || { profit: 0, trades: 0 }
+    calendarDataMap.set(item.date, {
+      profit: existing.profit + item.profit,
+      trades: existing.trades + item.trades
+    })
+  })
+  
+  const calendarData = Array.from(calendarDataMap.entries()).map(([date, data]) => ({
+    date,
+    profit: data.profit,
+    trades: data.trades
+  }))
+  
+  // Fetch real data from API
+  useEffect(() => {
+    const fetchCalendarData = async () => {
+      if (!authUser?.uid) return
+      
+      setLoadingApi(true)
+      try {
+        const response = await fetch(`/api/analytics/calendar`, {
+          headers: {
+            'x-user-id': authUser.uid,
+            'x-user-email': authUser.email || '',
+          }
+        })
+        
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.data) {
+            setApiCalendarData(result.data)
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching calendar data:', error)
+      } finally {
+        setLoadingApi(false)
+      }
+    }
+    
+    fetchCalendarData()
+  }, [authUser?.uid])
 
   // State for selected month/year
   const [selectedDate, setSelectedDate] = useState(new Date())

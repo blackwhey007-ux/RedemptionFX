@@ -3,11 +3,12 @@ import { db } from './firebaseConfig'
 
 export interface CreateUserNotification {
   userId: string
-  type: 'welcome' | 'promotion' | 'announcement' | 'system' | 'vip_approved' | 'payment_reminder'
+  type: 'welcome' | 'promotion' | 'announcement' | 'system' | 'vip_approved' | 'payment_reminder' | 'event'
   title: string
   message: string
   data?: {
     promotionId?: string
+    eventId?: string
     actionUrl?: string
     soundType?: 'default' | 'success' | 'warning' | 'info' | 'vip_approved' | 'promotion'
   }

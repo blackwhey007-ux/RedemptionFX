@@ -6,7 +6,11 @@ import { AuthProvider } from '@/contexts/AuthContext'
 // Import Tailwind CSS and RedemptionFX Theme
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ 
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'RedemptionFX - Professional Forex Trading Signals',
@@ -46,7 +50,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={inter.className}>
+      <body className={`${inter.variable} font-sans antialiased`}>
         <AuthProvider>
           {children}
           <Toaster />

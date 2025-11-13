@@ -8,6 +8,12 @@ export interface TradingProfile {
   isPublic: boolean // If true, VIP/Guest can view
   createdAt: string
   updatedAt: string
+  // MT5 Account Integration
+  mt5AccountId?: string // MetaAPI account ID for direct MT5 sync
+  mt5AccountName?: string // Display name for the account
+  copyTradingAccountId?: string // Link to copy trading account
+  autoSyncEnabled?: boolean // Enable/disable auto-sync
+  lastSyncAt?: string // Last successful sync timestamp (ISO string)
 }
 
 export interface UserRole {

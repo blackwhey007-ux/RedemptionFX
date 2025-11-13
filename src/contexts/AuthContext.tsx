@@ -22,6 +22,20 @@ export interface AuthUser {
     paidAt?: string
     expiresAt?: string
   }
+  profileSettings?: {
+    telegramUsername?: string
+    telegramUserId?: number
+  }
+  linkedAccounts?: Array<{
+    id: string
+    mt5AccountId?: string
+    copyTradingAccountId?: string
+    accountName: string
+    accountType: 'MT5' | 'COPY_TRADING'
+    isActive: boolean
+    linkedAt: Date | string
+  }>
+  activeAccountId?: string | null
 }
 
 interface AuthContextType {
@@ -110,6 +124,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
             expiresAt: userData.paymentInfo.expiresAt?.toDate?.() || userData.paymentInfo.expiresAt || undefined
           } : undefined
           
+          // Extract profileSettings
+          const profileSettings = userData.profileSettings || undefined
+          
+          // Extract linkedAccounts and activeAccountId
+          const linkedAccounts = userData.linkedAccounts || undefined
+          const activeAccountId = userData.activeAccountId || undefined
+          
           const authUser = {
             uid: firebaseUser.uid,
             email: firebaseUser.email,
@@ -118,7 +139,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
             role: userRole,
             isAdmin,
             status: userData.status || 'active',
-            paymentInfo: safePaymentInfo
+            paymentInfo: safePaymentInfo,
+            profileSettings: profileSettings,
+            linkedAccounts: linkedAccounts,
+            activeAccountId: activeAccountId
           }
           
           console.log('🔐 AuthContext: User authenticated with role:', {

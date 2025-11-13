@@ -24,8 +24,8 @@ export const createTrade = async (tradeData: Omit<Trade, 'id' | 'createdAt' | 'u
     console.log('Trade object to save:', trade)
     
     // Validate required fields
-    if (!trade.pair || !trade.profileId || !trade.userId) {
-      throw new Error('Missing required fields: pair, profileId, or userId')
+    if (!trade.pair || !trade.accountId || !trade.userId) {
+      throw new Error('Missing required fields: pair, accountId, or userId')
     }
     
     // Check for invalid values
@@ -49,17 +49,18 @@ export const createTrade = async (tradeData: Omit<Trade, 'id' | 'createdAt' | 'u
   }
 }
 
-// Get trades by profile ID
-export const getTradesByProfile = async (profileId: string, limitCount: number = 100) => {
+// Get trades by account ID and user ID (for data isolation)
+export const getTradesByAccount = async (userId: string, accountId: string, limitCount: number = 100) => {
   try {
-    console.log(`Fetching trades for profile: ${profileId}`)
+    console.log(`Fetching trades for account: ${accountId}, user: ${userId}`)
     const q = query(
       collection(db, 'trades'),
-      where('profileId', '==', profileId)
+      where('userId', '==', userId),
+      where('accountId', '==', accountId)
     )
     
     const querySnapshot = await getDocs(q)
-    console.log(`Found ${querySnapshot.docs.length} trades for profile ${profileId}`)
+    console.log(`Found ${querySnapshot.docs.length} trades for account ${accountId}`)
     
     const trades = querySnapshot.docs.map(doc => {
       const data = doc.data()
@@ -88,6 +89,48 @@ export const getTradesByProfile = async (profileId: string, limitCount: number =
     const validTrades = trades.filter(trade => trade !== null) as Trade[]
     
     // Sort by createdAt in descending order (newest first) and limit
+    return validTrades
+      .sort((a, b) => {
+        if (!a.createdAt || !b.createdAt) return 0
+        return b.createdAt.getTime() - a.createdAt.getTime()
+      })
+      .slice(0, limitCount)
+  } catch (error) {
+    console.error('Error getting trades by account:', error)
+    throw error
+  }
+}
+
+// Legacy function for backward compatibility - filters by profileId if it exists
+export const getTradesByProfile = async (profileId: string, limitCount: number = 100) => {
+  try {
+    console.log(`[DEPRECATED] Fetching trades for profile: ${profileId} - use getTradesByAccount instead`)
+    const q = query(
+      collection(db, 'trades'),
+      where('profileId', '==', profileId)
+    )
+    
+    const querySnapshot = await getDocs(q)
+    console.log(`Found ${querySnapshot.docs.length} trades for profile ${profileId}`)
+    
+    const trades = querySnapshot.docs.map(doc => {
+      const data = doc.data()
+      const trade = {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate(),
+        updatedAt: data.updatedAt?.toDate()
+      } as Trade
+      
+      if (!doc.id || doc.id.trim() === '') {
+        return null
+      }
+      
+      return trade
+    })
+    
+    const validTrades = trades.filter(trade => trade !== null) as Trade[]
+    
     return validTrades
       .sort((a, b) => {
         if (!a.createdAt || !b.createdAt) return 0
@@ -204,7 +247,50 @@ export const deleteTrade = async (tradeId: string) => {
   }
 }
 
-// Get trade statistics for a profile
+// Get trade statistics for an account
+export const getTradeStatsByAccount = async (userId: string, accountId: string) => {
+  try {
+    const trades = await getTradesByAccount(userId, accountId)
+    
+    const stats = {
+      totalTrades: trades.length,
+      winningTrades: trades.filter(trade => trade.result && trade.result > 0).length,
+      losingTrades: trades.filter(trade => trade.result && trade.result < 0).length,
+      totalPips: trades.reduce((sum, trade) => sum + (trade.result || 0), 0),
+      winRate: 0,
+      averageWin: 0,
+      averageLoss: 0,
+      bestTrade: 0,
+      worstTrade: 0
+    }
+    
+    if (stats.totalTrades > 0) {
+      stats.winRate = (stats.winningTrades / stats.totalTrades) * 100
+      
+      const winningTrades = trades.filter(trade => trade.result && trade.result > 0)
+      const losingTrades = trades.filter(trade => trade.result && trade.result < 0)
+      
+      if (winningTrades.length > 0) {
+        stats.averageWin = winningTrades.reduce((sum, trade) => sum + (trade.result || 0), 0) / winningTrades.length
+      }
+      
+      if (losingTrades.length > 0) {
+        stats.averageLoss = losingTrades.reduce((sum, trade) => sum + (trade.result || 0), 0) / losingTrades.length
+      }
+      
+      const results = trades.map(trade => trade.result || 0)
+      stats.bestTrade = Math.max(...results)
+      stats.worstTrade = Math.min(...results)
+    }
+    
+    return stats
+  } catch (error) {
+    console.error('Error getting trade stats by account:', error)
+    throw error
+  }
+}
+
+// Legacy function for backward compatibility
 export const getTradeStats = async (profileId: string) => {
   try {
     const trades = await getTradesByProfile(profileId)

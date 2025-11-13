@@ -20,7 +20,8 @@ import {
 } from '@/types/event'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardDecorativeOrb } from '@/components/ui/card'
+import { StatsCard } from '@/components/ui/stats-card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -197,68 +198,54 @@ export default function EventsPage() {
     return null
   }
 
+  const pendingCount = userApplications.filter(app => app.status === 'pending').length
+  const approvedCount = userApplications.filter(app => app.status === 'approved').length
+
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto space-y-6 w-full box-border">
       {/* Header */}
-      <Card className="bg-gradient-to-br from-white to-blue-50/30 dark:from-black dark:to-blue-900/10 border-blue-500/30 dark:border-blue-500/50 shadow-xl shadow-blue-500/20 mb-8">
-        <CardHeader>
-          <div className="text-center">
-            <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white flex items-center justify-center gap-2">
-              <Calendar className="w-6 h-6 text-blue-500" />
-              Available Events
-            </CardTitle>
-            <CardDescription className="text-slate-600 dark:text-slate-400 mt-2">
-              Apply to events and track your applications
-            </CardDescription>
-          </div>
-        </CardHeader>
-      </Card>
+      <div>
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <Calendar className="h-6 w-6 text-blue-500" />
+          Events
+        </h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          Apply to events and track your applications
+        </p>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <StatsCard
+          title="Available Events"
+          value={events.length}
+          trend="Open for registration"
+          icon={Calendar}
+          decorativeColor="blue"
+        />
+        <StatsCard
+          title="My Applications"
+          value={userApplications.length}
+          trend={`${approvedCount} approved, ${pendingCount} pending`}
+          icon={Users}
+          decorativeColor="green"
+        />
+        <StatsCard
+          title="Pending Review"
+          value={pendingCount}
+          trend="Awaiting approval"
+          icon={AlertCircle}
+          decorativeColor="gold"
+        />
+      </div>
 
       <Tabs defaultValue="available" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="available">Available Events</TabsTrigger>
-          <TabsTrigger value="my-applications">My Applications</TabsTrigger>
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="available">Available Events ({events.length})</TabsTrigger>
+          <TabsTrigger value="my-applications">My Applications ({userApplications.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="available" className="space-y-6">
-          {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Available Events</p>
-                    <p className="text-2xl font-bold">{events.length}</p>
-                  </div>
-                  <Calendar className="h-8 w-8 text-blue-500" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">My Applications</p>
-                    <p className="text-2xl font-bold">{userApplications.length}</p>
-                  </div>
-                  <Users className="h-8 w-8 text-green-500" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Pending</p>
-                    <p className="text-2xl font-bold text-yellow-600">
-                      {userApplications.filter(app => app.status === 'pending').length}
-                    </p>
-                  </div>
-                  <AlertCircle className="h-8 w-8 text-yellow-500" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
 
           {/* Events Grid */}
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

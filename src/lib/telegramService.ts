@@ -5,6 +5,19 @@ import { collection, addDoc, getDocs, query, where, limit, orderBy, doc, updateD
 import { Timestamp } from 'firebase/firestore'
 import { calculatePips } from './currencyDatabase'
 
+// Import TelegramBot for direct server-side calls (safe import to prevent module failure)
+let TelegramBot: any = null
+if (typeof window === 'undefined') {
+  // Only import on server-side, with error handling
+  try {
+    TelegramBot = require('node-telegram-bot-api').default || require('node-telegram-bot-api')
+    console.log('[TELEGRAM] TelegramBot imported successfully for server-side use')
+  } catch (error) {
+    console.warn('[TELEGRAM] Failed to import TelegramBot, will use HTTP API fallback:', error instanceof Error ? error.message : 'Unknown error')
+    TelegramBot = null
+  }
+}
+
 // Get Telegram settings from Firestore
 export const getTelegramSettings = async (): Promise<TelegramSettings | null> => {
   try {
@@ -31,16 +44,70 @@ export const getTelegramSettings = async (): Promise<TelegramSettings | null> =>
 }
 
 // Save Telegram settings to Firestore
-export const saveTelegramSettings = async (settings: Omit<TelegramSettings, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+export const saveTelegramSettings = async (settings: TelegramSettings): Promise<string> => {
   try {
-    const settingsData = {
-      ...settings,
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now()
-    }
+    // Check if settings already exist
+    const existingSettings = await getTelegramSettings()
     
-    const docRef = await addDoc(collection(db, 'telegramSettings'), settingsData)
-    return docRef.id
+    if (existingSettings && existingSettings.id) {
+      // Update existing settings
+      const settingsRef = doc(db, 'telegramSettings', existingSettings.id)
+      
+      // Clean the settings object - remove id, createdAt, updatedAt and convert Dates to Timestamps
+      const { id, createdAt, updatedAt, lastDailyReport, lastWeeklyReport, lastMonthlyReport, 
+              lastPublicDailyReport, lastPublicWeeklyReport, lastPublicMonthlyReport, ...cleanSettings } = settings
+      
+      const updateData: any = {
+        ...cleanSettings,
+        updatedAt: Timestamp.now()
+      }
+      
+      // Convert Date fields to Timestamps if they exist and are valid
+      const convertToTimestamp = (date: any) => {
+        if (!date) return null
+        try {
+          const d = new Date(date)
+          if (isNaN(d.getTime())) return null
+          return Timestamp.fromDate(d)
+        } catch {
+          return null
+        }
+      }
+      
+      const lastDailyTimestamp = convertToTimestamp(lastDailyReport)
+      const lastWeeklyTimestamp = convertToTimestamp(lastWeeklyReport)
+      const lastMonthlyTimestamp = convertToTimestamp(lastMonthlyReport)
+      const lastPublicDailyTimestamp = convertToTimestamp(lastPublicDailyReport)
+      const lastPublicWeeklyTimestamp = convertToTimestamp(lastPublicWeeklyReport)
+      const lastPublicMonthlyTimestamp = convertToTimestamp(lastPublicMonthlyReport)
+      
+      if (lastDailyTimestamp) updateData.lastDailyReport = lastDailyTimestamp
+      if (lastWeeklyTimestamp) updateData.lastWeeklyReport = lastWeeklyTimestamp
+      if (lastMonthlyTimestamp) updateData.lastMonthlyReport = lastMonthlyTimestamp
+      if (lastPublicDailyTimestamp) updateData.lastPublicDailyReport = lastPublicDailyTimestamp
+      if (lastPublicWeeklyTimestamp) updateData.lastPublicWeeklyReport = lastPublicWeeklyTimestamp
+      if (lastPublicMonthlyTimestamp) updateData.lastPublicMonthlyReport = lastPublicMonthlyTimestamp
+      
+      // Remove undefined values (Firestore doesn't allow undefined)
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] === undefined) {
+          delete updateData[key]
+        }
+      })
+      
+      await updateDoc(settingsRef, updateData)
+      return existingSettings.id
+    } else {
+      // Create new settings
+      const settingsData = {
+        ...settings,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      }
+      
+      const docRef = await addDoc(collection(db, 'telegramSettings'), settingsData)
+      return docRef.id
+    }
   } catch (error) {
     console.error('Error saving Telegram settings:', error)
     throw error
@@ -148,10 +215,319 @@ ${signal.notes ? `\n💡 ${signal.notes}` : ''}
     .replace(/\{notes \? '📝 Notes: ' : ''\}/g, signal.notes ? '📝 Notes: ' : '')
 }
 
-// Send message to Telegram via API
-const sendToTelegramAPI = async (message: string, destination: 'channel' | 'group', id: string): Promise<string | null> => {
+// Send a GIF/animation to Telegram
+export const sendGif = async (
+  chatId: string,
+  gifUrl: string,
+  botToken?: string
+): Promise<boolean> => {
   try {
-    const response = await fetch('/api/telegram/send-message', {
+    const isServerSide = typeof window === 'undefined'
+    
+    // On server-side, try calling Telegram API directly
+    if (isServerSide && TelegramBot) {
+      try {
+        const token = botToken || (await getTelegramSettings())?.botToken
+        if (!token) {
+          throw new Error('Bot token not configured')
+        }
+        
+        const bot = new TelegramBot(token, { polling: false })
+        
+        // Send as animation (supports GIF URLs from Tenor, Giphy, or direct links)
+        await bot.sendAnimation(chatId, gifUrl)
+        
+        console.log('[TELEGRAM] GIF sent directly via TelegramBot API')
+        return true
+      } catch (directError) {
+        console.warn('[TELEGRAM] Direct API GIF send failed, falling back to HTTP:', directError instanceof Error ? directError.message : 'Unknown error')
+      }
+    }
+    
+    // HTTP fallback
+    let apiUrl = '/api/telegram/send-gif'
+    if (isServerSide) {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+      apiUrl = `${baseUrl}/api/telegram/send-gif`
+    }
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        chatId,
+        gifUrl,
+        botToken
+      })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(`HTTP error! status: ${response.status}, ${errorData.error || ''}`)
+    }
+
+    return true
+  } catch (error) {
+    console.error('Error sending GIF to Telegram:', error)
+    // Don't throw - GIF sending is optional, shouldn't break the flow
+    return false
+  }
+}
+
+// Send a reply to an existing message
+export const sendReplyMessage = async (
+  chatId: string,
+  text: string,
+  replyToMessageId: number,
+  botToken?: string
+): Promise<number | null> => {
+  try {
+    const isServerSide = typeof window === 'undefined'
+    
+    // On server-side, try calling Telegram API directly
+    if (isServerSide && TelegramBot) {
+      try {
+        const token = botToken || (await getTelegramSettings())?.botToken
+        if (!token) {
+          throw new Error('Bot token not configured')
+        }
+        
+        const bot = new TelegramBot(token, { polling: false })
+        const result = await bot.sendMessage(chatId, text, {
+          parse_mode: 'Markdown',
+          disable_web_page_preview: true,
+          reply_to_message_id: replyToMessageId,
+          allow_sending_without_reply: true // Send even if original is deleted
+        })
+        
+        console.log('[TELEGRAM] Reply sent directly via TelegramBot API')
+        return result.message_id || null
+      } catch (directError) {
+        console.warn('[TELEGRAM] Direct API reply failed, falling back to HTTP:', directError instanceof Error ? directError.message : 'Unknown error')
+      }
+    }
+    
+    // HTTP fallback
+    let apiUrl = '/api/telegram/send-reply'
+    if (isServerSide) {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+      apiUrl = `${baseUrl}/api/telegram/send-reply`
+    }
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        chatId,
+        text,
+        replyToMessageId,
+        botToken
+      })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(`HTTP error! status: ${response.status}, ${errorData.error || ''}`)
+    }
+
+    const result = await response.json()
+    return result.messageId || null
+  } catch (error) {
+    console.error('Error sending reply to Telegram:', error)
+    throw error
+  }
+}
+
+// Copy an existing message with a caption prefix
+export const copyMessage = async (
+  chatId: string,
+  fromChatId: string,
+  messageId: number,
+  captionPrefix?: string,
+  botToken?: string
+): Promise<number | null> => {
+  try {
+    const isServerSide = typeof window === 'undefined'
+    
+    // On server-side, try calling Telegram API directly
+    if (isServerSide && TelegramBot) {
+      try {
+        const token = botToken || (await getTelegramSettings())?.botToken
+        if (!token) {
+          throw new Error('Bot token not configured')
+        }
+        
+        const bot = new TelegramBot(token, { polling: false })
+        
+        // Note: copyMessage doesn't support caption modification in Telegram API
+        // We'll need to forward or recreate the message
+        // For now, let's use forwardMessage and then send caption separately
+        const result = await bot.copyMessage(chatId, fromChatId, messageId)
+        
+        // If we have a prefix, send it as a separate message
+        if (captionPrefix) {
+          await bot.sendMessage(chatId, captionPrefix, {
+            parse_mode: 'Markdown',
+            disable_web_page_preview: true
+          })
+        }
+        
+        console.log('[TELEGRAM] Message copied directly via TelegramBot API')
+        return result.message_id || null
+      } catch (directError) {
+        console.warn('[TELEGRAM] Direct API copy failed, falling back to HTTP:', directError instanceof Error ? directError.message : 'Unknown error')
+      }
+    }
+    
+    // HTTP fallback
+    let apiUrl = '/api/telegram/copy-message'
+    if (isServerSide) {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+      apiUrl = `${baseUrl}/api/telegram/copy-message`
+    }
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        chatId,
+        fromChatId,
+        messageId,
+        captionPrefix,
+        botToken
+      })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(`HTTP error! status: ${response.status}, ${errorData.error || ''}`)
+    }
+
+    const result = await response.json()
+    return result.messageId || null
+  } catch (error) {
+    console.error('Error copying Telegram message:', error)
+    throw error
+  }
+}
+
+// Edit message on Telegram via API
+export const editTelegramMessage = async (
+  chatId: string,
+  messageId: number,
+  text: string,
+  botToken?: string
+): Promise<boolean> => {
+  try {
+    const isServerSide = typeof window === 'undefined'
+    
+    // On server-side, try calling Telegram API directly
+    if (isServerSide && TelegramBot) {
+      try {
+        const token = botToken || (await getTelegramSettings())?.botToken
+        if (!token) {
+          throw new Error('Bot token not configured')
+        }
+        
+        const bot = new TelegramBot(token, { polling: false })
+        await bot.editMessageText(text, {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: 'Markdown',
+          disable_web_page_preview: true
+        })
+        
+        console.log('[TELEGRAM] Message edited directly via TelegramBot API')
+        return true
+      } catch (directError) {
+        console.warn('[TELEGRAM] Direct API edit failed, falling back to HTTP:', directError instanceof Error ? directError.message : 'Unknown error')
+        // Continue to HTTP fallback below
+      }
+    }
+    
+    // HTTP fallback for message editing
+    let apiUrl = '/api/telegram/edit-message'
+    
+    if (isServerSide) {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+      apiUrl = `${baseUrl}/api/telegram/edit-message`
+    }
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        chatId,
+        messageId,
+        text,
+        botToken
+      })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(`HTTP error! status: ${response.status}, ${errorData.error || ''}`)
+    }
+
+    return true
+  } catch (error) {
+    console.error('Error editing Telegram message:', error)
+    throw error
+  }
+}
+
+// Send message to Telegram via API
+export const sendToTelegramAPI = async (message: string, destination: 'channel' | 'group', id: string, botToken?: string): Promise<string | null> => {
+  try {
+    const isServerSide = typeof window === 'undefined'
+    
+    // On server-side, try calling Telegram API directly (more efficient)
+    if (isServerSide && TelegramBot) {
+      try {
+        const token = botToken || (await getTelegramSettings())?.botToken
+        if (!token) {
+          throw new Error('Bot token not configured')
+        }
+        
+        const bot = new TelegramBot(token, { polling: false })
+        const result = await bot.sendMessage(id, message, {
+          parse_mode: 'Markdown',
+          disable_web_page_preview: true
+        })
+        
+        console.log('[TELEGRAM] Message sent directly via TelegramBot API')
+        return result.message_id?.toString() || null
+      } catch (directError) {
+        // If direct API call fails, fall back to HTTP endpoint
+        console.warn('[TELEGRAM] Direct API call failed, falling back to HTTP:', directError instanceof Error ? directError.message : 'Unknown error')
+        // Continue to HTTP fallback below
+      }
+    }
+    
+    // Client-side or server-side fallback: use HTTP API endpoint
+    let apiUrl = '/api/telegram/send-message'
+    
+    // For server-side HTTP fallback, use absolute URL
+    if (isServerSide) {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+      apiUrl = `${baseUrl}/api/telegram/send-message`
+      console.log('[TELEGRAM] Using HTTP fallback with URL:', apiUrl)
+    }
+    
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -159,12 +535,14 @@ const sendToTelegramAPI = async (message: string, destination: 'channel' | 'grou
       body: JSON.stringify({
         message,
         destination,
-        id
+        id,
+        botToken
       })
     })
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(`HTTP error! status: ${response.status}, ${errorData.error || ''}`)
     }
 
     const result = await response.json()
@@ -172,6 +550,130 @@ const sendToTelegramAPI = async (message: string, destination: 'channel' | 'grou
   } catch (error) {
     console.error('Error sending to Telegram API:', error)
     throw error
+  }
+}
+
+/**
+ * Send direct message to a Telegram user
+ * @param chatId - User's Telegram user ID (numeric)
+ * @param message - Message text (Markdown supported)
+ * @param botToken - Optional bot token, otherwise uses settings
+ * @returns Message ID if successful, null otherwise
+ */
+export const sendDirectMessage = async (
+  chatId: number | string,
+  message: string,
+  botToken?: string
+): Promise<string | null> => {
+  try {
+    const isServerSide = typeof window === 'undefined'
+    
+    if (!isServerSide) {
+      console.warn('[TELEGRAM] sendDirectMessage can only be called server-side')
+      return null
+    }
+    
+    console.log(`[TELEGRAM] sendDirectMessage called: chatId=${chatId}, messageLength=${message.length}, botTokenProvided=${!!botToken}`)
+    
+    // On server-side, try calling Telegram API directly
+    if (TelegramBot) {
+      console.log(`[TELEGRAM] TelegramBot is available`)
+      try {
+        const settings = await getTelegramSettings()
+        const token = botToken || settings?.botToken
+        
+        console.log(`[TELEGRAM] Bot token check:`, {
+          botTokenProvided: !!botToken,
+          settingsExists: !!settings,
+          tokenFromSettings: !!settings?.botToken,
+          finalTokenExists: !!token
+        })
+        
+        if (!token) {
+          console.warn('[TELEGRAM] ❌ Bot token not configured for direct message. Please configure Telegram bot token in settings.')
+          return null
+        }
+        
+        console.log(`[TELEGRAM] Creating TelegramBot instance with token (length: ${token.length})`)
+        const bot = new TelegramBot(token, { polling: false })
+        const chatIdStr = typeof chatId === 'number' ? chatId.toString() : chatId
+        
+        console.log(`[TELEGRAM] Sending message to chatId: ${chatIdStr}`)
+        const result = await bot.sendMessage(chatIdStr, message, {
+          parse_mode: 'Markdown',
+          disable_web_page_preview: true
+        })
+        
+        console.log(`[TELEGRAM] ✅ Direct message sent successfully to user ${chatIdStr}, messageId: ${result.message_id}`)
+        return result.message_id?.toString() || null
+      } catch (directError: any) {
+        // Handle specific Telegram API errors
+        if (directError.response?.statusCode === 403) {
+          console.warn(`[TELEGRAM] ❌ User ${chatId} has not started conversation with bot or blocked it. User must send /start to the bot first.`)
+          return null
+        }
+        if (directError.response?.statusCode === 400) {
+          console.warn(`[TELEGRAM] ❌ Invalid chat ID: ${chatId}. Please verify the Telegram User ID is correct.`)
+          return null
+        }
+        console.warn('[TELEGRAM] ❌ Direct API call failed:', {
+          error: directError instanceof Error ? directError.message : 'Unknown error',
+          statusCode: directError.response?.statusCode,
+          response: directError.response?.body
+        })
+        return null
+      }
+    }
+    
+    console.warn('[TELEGRAM] ❌ TelegramBot not available, cannot send direct message')
+    return null
+  } catch (error) {
+    console.error('[TELEGRAM] ❌ Error sending direct message:', error)
+    return null
+  }
+}
+
+/**
+ * Verify if Telegram bot token is configured
+ */
+export async function verifyBotToken(botToken?: string): Promise<{ configured: boolean; error?: string }> {
+  try {
+    const isServerSide = typeof window === 'undefined'
+    
+    if (!isServerSide) {
+      return { configured: false, error: 'Can only verify bot token server-side' }
+    }
+    
+    if (!TelegramBot) {
+      return { configured: false, error: 'TelegramBot module not available' }
+    }
+    
+    const settings = await getTelegramSettings()
+    const token = botToken || settings?.botToken
+    
+    if (!token) {
+      return { configured: false, error: 'Bot token not configured' }
+    }
+    
+    // Try to get bot info to verify token
+    try {
+      const bot = new TelegramBot(token, { polling: false })
+      const botInfo = await bot.getMe()
+      console.log(`[TELEGRAM] Bot token verified successfully. Bot username: @${botInfo.username}`)
+      return { configured: true }
+    } catch (error: any) {
+      return { 
+        configured: false, 
+        error: error.response?.statusCode === 401 
+          ? 'Invalid bot token' 
+          : error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  } catch (error) {
+    return { 
+      configured: false, 
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }
   }
 }
 
@@ -318,9 +820,41 @@ export const updateSignalStatusInTelegram = async (
   newStatus: string
 ): Promise<{ success: boolean; error?: string }> => {
   try {
+    console.log('[TELEGRAM] updateSignalStatusInTelegram called:', {
+      signalId: signal.id,
+      pair: signal.pair,
+      status: newStatus,
+      hasMessageId: !!signal.telegramMessageId,
+      hasChatId: !!signal.telegramChatId,
+      category: signal.category
+    })
+    
     const settings = await getTelegramSettings()
-    if (!settings?.botToken || !signal.telegramMessageId) {
-      return { success: false, error: 'Missing settings or message ID' }
+    if (!settings?.botToken) {
+      console.warn('[TELEGRAM] Missing bot token')
+      return { success: false, error: 'Missing bot token' }
+    }
+
+    // Determine chat ID - use signal's telegramChatId if available, otherwise use settings based on category
+    let chatId = signal.telegramChatId
+    if (!chatId && settings) {
+      if (signal.category === 'vip' && settings.channelId) {
+        chatId = settings.channelId
+        console.log('[TELEGRAM] Using VIP channel ID from settings:', chatId)
+      } else if (signal.category === 'free' && settings.publicChannelId) {
+        chatId = settings.publicChannelId
+        console.log('[TELEGRAM] Using public channel ID from settings:', chatId)
+      }
+    }
+
+    if (!chatId) {
+      console.warn('[TELEGRAM] Missing chat ID:', {
+        signalChatId: signal.telegramChatId,
+        hasVipChannel: !!settings?.channelId,
+        hasPublicChannel: !!settings?.publicChannelId,
+        category: signal.category
+      })
+      return { success: false, error: 'Missing chat ID' }
     }
 
     const statusEmoji = {
@@ -341,26 +875,311 @@ export const updateSignalStatusInTelegram = async (
       enhancedStatusEmoji = `🔚 CLOSED MANUALLY at ${signal.closePrice} (${resultText} pips)`
     }
 
-    const originalMessage = formatSignalMessage(signal, settings.messageTemplate, false)
-    const updatedMessage = `${originalMessage}\n\n🔔 *UPDATE: ${enhancedStatusEmoji}*`
+    // If we have telegramMessageId, try to edit the existing message
+    if (signal.telegramMessageId) {
+      try {
+        // Format message with error handling
+        let originalMessage: string
+        try {
+          originalMessage = formatSignalMessage(signal, settings.messageTemplate, false)
+        } catch (formatError) {
+          console.error('[TELEGRAM] Error formatting signal message:', formatError)
+          // Fallback to simple message if formatting fails
+          originalMessage = `📊 *${signal.pair}* ${signal.type === 'BUY' ? '🟢 LONG' : '🔴 SHORT'}\n\n💰 Entry: ${signal.entryPrice}\n🛑 SL: ${signal.stopLoss}\n🎯 TP: ${signal.takeProfit1}`
+        }
+        
+        const updatedMessage = `${originalMessage}\n\n🔔 *UPDATE: ${enhancedStatusEmoji}*`
 
-    const response = await fetch('/api/telegram/update-message', {
+        const isServerSide = typeof window === 'undefined'
+        let apiUrl = '/api/telegram/update-message'
+        if (isServerSide) {
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                         (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+          apiUrl = `${baseUrl}/api/telegram/update-message`
+        }
+
+        // Try direct API call first (server-side only)
+        if (isServerSide && TelegramBot && signal.telegramMessageId) {
+          try {
+            // Validate message ID is a valid number
+            const messageIdNum = parseInt(signal.telegramMessageId.toString())
+            if (isNaN(messageIdNum)) {
+              throw new Error(`Invalid telegramMessageId: ${signal.telegramMessageId}`)
+            }
+            
+            const bot = new TelegramBot(settings.botToken, { polling: false })
+            await bot.editMessageText(updatedMessage, {
+              chat_id: chatId,
+              message_id: messageIdNum,
+              parse_mode: 'Markdown',
+              disable_web_page_preview: true
+            })
+            console.log('[TELEGRAM] ✅ Status update: Message edited successfully')
+          } catch (directError) {
+            console.warn('[TELEGRAM] Direct edit failed, trying HTTP:', directError instanceof Error ? directError.message : 'Unknown error')
+            // Continue to HTTP fallback
+          }
+        }
+
+        // HTTP fallback for editing (only if messageId is valid)
+        if (signal.telegramMessageId) {
+          try {
+            const messageIdNum = parseInt(signal.telegramMessageId.toString())
+            if (!isNaN(messageIdNum)) {
+              const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  messageId: messageIdNum.toString(),
+                  chatId: chatId,
+                  newText: updatedMessage
+                })
+              })
+
+              if (response.ok) {
+                const result = await response.json()
+                console.log('[TELEGRAM] ✅ Status update: Message edited via HTTP')
+                
+                // Also send new update message with enhanced info
+                const updateMessage = `🔔 *SIGNAL UPDATE*\n\n${signal.pair} ${signal.type}\n\n${enhancedStatusEmoji}\n\n⏰ ${new Date().toLocaleString()}`
+                await sendToTelegramAPI(updateMessage, 'channel', chatId)
+                
+                return result
+              }
+            }
+          } catch (httpError) {
+            console.warn('[TELEGRAM] HTTP edit failed, will send new message instead:', httpError instanceof Error ? httpError.message : 'Unknown error')
+            // Continue to send new message below
+          }
+        }
+      } catch (editError) {
+        console.warn('[TELEGRAM] Failed to edit message, will send new message instead:', editError instanceof Error ? editError.message : 'Unknown error')
+        // Continue to send new message below
+      }
+    }
+
+    // If editing failed or no messageId, send a NEW message instead
+    const updateMessage = `🔔 *SIGNAL UPDATE*\n\n${signal.pair} ${signal.type}\n\n${enhancedStatusEmoji}${signal.result !== undefined ? `\n💰 Result: ${signal.result > 0 ? '+' : ''}${signal.result} pips` : ''}${signal.closePrice !== undefined ? `\n📊 Close Price: ${signal.closePrice}` : ''}\n\n⏰ ${new Date().toLocaleString()}`
+    
+    const messageId = await sendToTelegramAPI(updateMessage, 'channel', chatId)
+    
+    if (messageId) {
+      console.log('[TELEGRAM] ✅ Status update: New message sent successfully')
+      return { success: true }
+    } else {
+      return { success: false, error: 'Failed to send new message' }
+    }
+  } catch (error: any) {
+    console.error('[TELEGRAM] Error updating signal status:', error)
+    return { success: false, error: error.message || 'Unknown error' }
+  }
+}
+
+// Update signal message in Telegram (for TP/SL changes)
+export const updateSignalMessageInTelegram = async (signal: Signal): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const settings = await getTelegramSettings()
+    if (!settings?.botToken || !signal.telegramMessageId) {
+      console.error('[TELEGRAM] Missing bot token or message ID:', {
+        hasBotToken: !!settings?.botToken,
+        hasMessageId: !!signal.telegramMessageId,
+        telegramChatId: signal.telegramChatId
+      })
+      return { success: false, error: 'Missing bot token or message ID' }
+    }
+
+    // If telegramChatId is not set, try to determine from signal category
+    let chatId = signal.telegramChatId
+    if (!chatId && settings) {
+      if (signal.category === 'vip' && settings.channelId) {
+        chatId = settings.channelId
+        console.log('[TELEGRAM] Using VIP channel ID from settings:', chatId)
+      } else if (signal.category === 'free' && settings.publicChannelId) {
+        chatId = settings.publicChannelId
+        console.log('[TELEGRAM] Using public channel ID from settings:', chatId)
+      }
+    }
+
+    if (!chatId) {
+      console.error('[TELEGRAM] No chat ID available for signal:', {
+        signalId: signal.id,
+        category: signal.category,
+        telegramChatId: signal.telegramChatId,
+        hasVipChannel: !!settings?.channelId,
+        hasPublicChannel: !!settings?.publicChannelId
+      })
+      return { success: false, error: 'Missing chat ID' }
+    }
+
+    // Format updated message with new TP/SL values
+    const updatedMessage = formatSignalMessage(signal, settings.messageTemplate, false)
+    
+    console.log('[TELEGRAM] Updating message:', {
+      signalId: signal.id,
+      messageId: signal.telegramMessageId,
+      chatId: chatId,
+      pair: signal.pair
+    })
+    
+    const isServerSide = typeof window === 'undefined'
+    
+    // Try direct API call first (server-side)
+    if (isServerSide && TelegramBot) {
+      try {
+        // Validate message ID before parsing
+        const messageIdNum = parseInt(signal.telegramMessageId.toString())
+        if (isNaN(messageIdNum)) {
+          throw new Error(`Invalid telegramMessageId: ${signal.telegramMessageId}`)
+        }
+        
+        const bot = new TelegramBot(settings.botToken, { polling: false })
+        await bot.editMessageText(updatedMessage, {
+          chat_id: chatId,
+          message_id: messageIdNum,
+          parse_mode: 'Markdown',
+          disable_web_page_preview: true
+        })
+        console.log('[TELEGRAM] ✅ Message updated directly via TelegramBot API')
+        return { success: true }
+      } catch (directError) {
+        console.warn('[TELEGRAM] Direct API call failed, falling back to HTTP:', directError instanceof Error ? directError.message : 'Unknown error')
+        console.warn('[TELEGRAM] Error details:', directError)
+        // Continue to HTTP fallback
+      }
+    }
+    
+    // HTTP fallback (client-side or if direct call failed)
+    let apiUrl = '/api/telegram/update-message'
+    if (isServerSide) {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+      apiUrl = `${baseUrl}/api/telegram/update-message`
+    }
+    
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messageId: signal.telegramMessageId,
-        chatId: settings.channelId,
+        chatId: chatId,
         newText: updatedMessage
       })
     })
 
-    const result = await response.json()
-    
-    // Also send new update message with enhanced close_now info
-    let updateMessage = `🔔 *SIGNAL UPDATE*\n\n${signal.pair} ${signal.type}\n\n${enhancedStatusEmoji}\n\n⏰ ${new Date().toLocaleString()}`
-    await sendToTelegramAPI(updateMessage, 'channel', settings.channelId!)
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      const errorMsg = errorData.error || `HTTP error! status: ${response.status}`
+      console.error('[TELEGRAM] HTTP update failed:', errorMsg)
+      throw new Error(errorMsg)
+    }
 
+    const result = await response.json()
+    console.log('[TELEGRAM] ✅ Message updated via HTTP API')
     return result
+  } catch (error: any) {
+    console.error('[TELEGRAM] Error updating signal message:', error)
+    console.error('[TELEGRAM] Error details:', {
+      message: error.message,
+      stack: error.stack,
+      signalId: signal.id,
+      telegramMessageId: signal.telegramMessageId,
+      telegramChatId: signal.telegramChatId
+    })
+    return { success: false, error: error.message || 'Unknown error' }
+  }
+}
+
+// Remove member from Telegram group/channel
+export const removeMemberFromTelegramGroup = async (
+  chatId: string,
+  userId: string | number,
+  botToken?: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    // Get bot token from settings if not provided
+    let token = botToken
+    if (!token) {
+      const settings = await getTelegramSettings()
+      if (!settings?.botToken) {
+        return { success: false, error: 'Bot token not configured' }
+      }
+      token = settings.botToken
+    }
+    
+    // Initialize bot
+    const bot = new TelegramBot(token, { polling: false })
+    
+    // Convert userId to number if it's a string
+    const numericUserId = typeof userId === 'string' ? parseInt(userId, 10) : userId
+    
+    if (isNaN(numericUserId)) {
+      return { success: false, error: 'Invalid user ID format' }
+    }
+    
+    // Ban the member (permanently removes them)
+    // Note: banChatMember bans permanently, kickChatMember allows rejoin
+    // We use banChatMember to prevent re-joining
+    await bot.banChatMember(chatId, numericUserId, {
+      until_date: Math.floor(Date.now() / 1000) + 86400 // Ban for 24 hours initially (can be extended)
+    })
+    
+    // Optionally unban after a short period if you want to allow rejoin after payment
+    // For now, we'll keep them banned
+    
+    await logTelegramOperation({
+      signalId: 'subscription-expiry',
+      action: 'send',
+      destination: 'group',
+      success: true,
+      messageId: `Removed user ${numericUserId} from ${chatId}`
+    })
+    
+    return { success: true }
+  } catch (error: any) {
+    console.error('Error removing member from Telegram group:', error)
+    
+    let errorMessage = 'Unknown error'
+    if (error instanceof Error) {
+      if (error.message.includes('user not found')) {
+        errorMessage = 'User not found in group'
+      } else if (error.message.includes('not enough rights')) {
+        errorMessage = 'Bot does not have permission to ban members'
+      } else if (error.message.includes('chat not found')) {
+        errorMessage = 'Chat/group not found'
+      } else {
+        errorMessage = error.message
+      }
+    }
+    
+    await logTelegramOperation({
+      signalId: 'subscription-expiry',
+      action: 'send',
+      destination: 'group',
+      success: false,
+      error: errorMessage
+    })
+    
+    return { success: false, error: errorMessage }
+  }
+}
+
+// Get Telegram user ID from username
+// Note: This requires the user to have interacted with the bot first
+// For now, we'll rely on telegramUserId being stored or the username being resolved
+export const getTelegramUserIdByUsername = async (
+  username: string,
+  botToken?: string
+): Promise<{ success: boolean; userId?: number; error?: string }> => {
+  try {
+    // Note: Telegram Bot API doesn't provide a direct way to get user ID from username
+    // without the user interacting with the bot first. 
+    // We'll need to store telegramUserId when users join or interact with the bot.
+    // For now, return an error suggesting to store the ID
+    
+    return {
+      success: false,
+      error: 'Telegram user ID lookup by username requires bot interaction. Store telegramUserId when users join the group.'
+    }
   } catch (error: any) {
     return { success: false, error: error.message }
   }

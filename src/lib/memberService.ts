@@ -9,7 +9,8 @@ import {
   where,
   orderBy,
   limit,
-  serverTimestamp
+  serverTimestamp,
+  Timestamp
 } from 'firebase/firestore'
 import { db } from './firebaseConfig'
 
@@ -24,6 +25,7 @@ export interface Member {
     photoURL?: string
     discordUsername?: string
     telegramUsername?: string
+    telegramUserId?: number // Telegram numeric user ID (needed for banning/removing)
   }
   paymentInfo?: {
     plan?: string // Payment plan name (e.g., "Monthly VIP", "Yearly Premium")
@@ -199,5 +201,57 @@ export const getMember = async (userId: string): Promise<Member | null> => {
   } catch (error) {
     console.error('Error getting member:', error)
     throw new Error('Failed to get member')
+  }
+}
+
+// Get expired VIP members
+export const getExpiredVIPMembers = async (): Promise<Member[]> => {
+  try {
+    const now = new Date()
+    
+    // Query all VIP users (we'll filter by expiration date in memory to avoid index requirements)
+    const q = query(
+      collection(db, 'users'),
+      where('role', '==', 'vip')
+    )
+    
+    const querySnapshot = await getDocs(q)
+    const expiredMembers: Member[] = []
+    
+    querySnapshot.docs.forEach(doc => {
+      const data = doc.data()
+      const member: Member = {
+        uid: doc.id,
+        ...data
+      } as Member
+      
+      // Check if subscription has expired
+      if (member.paymentInfo?.expiresAt) {
+        let expiresAt: Date | null = null
+        
+        // Handle both Timestamp and Date formats
+        if (member.paymentInfo.expiresAt?.toDate) {
+          expiresAt = member.paymentInfo.expiresAt.toDate()
+        } else if (member.paymentInfo.expiresAt instanceof Date) {
+          expiresAt = member.paymentInfo.expiresAt
+        } else if (typeof member.paymentInfo.expiresAt === 'string') {
+          expiresAt = new Date(member.paymentInfo.expiresAt)
+        } else if (member.paymentInfo.expiresAt?.seconds) {
+          // Firestore Timestamp with seconds property
+          expiresAt = new Date(member.paymentInfo.expiresAt.seconds * 1000)
+        }
+        
+        // Check if expired (allow some tolerance for timing)
+        if (expiresAt && expiresAt < now) {
+          expiredMembers.push(member)
+        }
+      }
+    })
+    
+    console.log(`Found ${expiredMembers.length} expired VIP members`)
+    return expiredMembers
+  } catch (error) {
+    console.error('Error getting expired VIP members:', error)
+    throw new Error('Failed to get expired VIP members')
   }
 }

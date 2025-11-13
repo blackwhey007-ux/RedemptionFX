@@ -52,29 +52,25 @@ export function Header({ user }: HeaderProps) {
         return {
           icon: <Crown className="h-3 w-3" />,
           text: 'Admin',
-          variant: 'default' as const,
-          className: 'bg-gradient-to-r from-red-600 to-orange-500 text-white'
+          className: 'bg-gradient-to-r from-phoenix-600 to-gold-500 text-white border-0'
         }
       case 'vip':
         return {
           icon: <Star className="h-3 w-3" />,
-          text: 'VIP Member',
-          variant: 'secondary' as const,
-          className: 'bg-gradient-to-r from-purple-600 to-pink-500 text-white'
+          text: 'VIP',
+          className: 'bg-gradient-to-r from-gold-500 to-gold-600 text-white border-0'
         }
       case 'guest':
         return {
           icon: <Eye className="h-3 w-3" />,
           text: 'Guest',
-          variant: 'outline' as const,
-          className: 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400'
+          className: 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-700'
         }
       default:
         return {
           icon: <User className="h-3 w-3" />,
           text: 'Member',
-          variant: 'outline' as const,
-          className: 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400'
+          className: 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-700'
         }
     }
   }
@@ -82,14 +78,14 @@ export function Header({ user }: HeaderProps) {
   const roleBadge = getRoleBadge()
 
   return (
-    <header className="bg-gradient-to-r from-white/90 to-red-50/90 dark:from-black/90 dark:to-red-900/20 backdrop-blur-sm border-b border-red-200/30 dark:border-red-800/30 px-4 md:px-6 py-4 shadow-lg">
-      <div className="flex items-center justify-between">
-        {/* Logo and Welcome Message */}
-        <div className="flex items-center space-x-4">
-          <RedemptionLogo size="md" className="text-red-600 dark:text-red-400" />
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-red-600 via-red-700 to-orange-500 dark:from-red-400 dark:via-red-300 dark:to-orange-400 bg-clip-text text-transparent">
-              Welcome back, {user.displayName?.split(' ')[0] || 'Trader'}!
+    <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 px-4 md:px-6 py-3 shadow-sm transition-all duration-300">
+      <div className="flex items-center justify-between max-w-full">
+        {/* Logo */}
+        <div className="flex items-center space-x-3">
+          <RedemptionLogo size="md" className="text-phoenix-500 dark:text-phoenix-400" />
+          <div className="hidden md:block">
+            <h1 className="text-lg font-semibold bg-gradient-to-r from-phoenix-600 to-gold-500 bg-clip-text text-transparent">
+              RedemptionFX
             </h1>
           </div>
         </div>
@@ -128,7 +124,7 @@ export function Header({ user }: HeaderProps) {
                 </div>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-80" align="end">
+            <DropdownMenuContent className="w-80 bg-white/95 dark:bg-gray-950/95 backdrop-blur-xl border-gray-200 dark:border-gray-800" align="end">
               <DropdownMenuLabel className="flex items-center space-x-2">
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={user.photoURL || ''} alt={user.displayName || 'User'} />

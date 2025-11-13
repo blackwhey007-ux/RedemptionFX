@@ -17,11 +17,37 @@ import {
   Timestamp
 } from 'firebase/firestore'
 import { db } from './firebaseConfig'
-import { Event, EventApplication, AdminEventNotification, EventType, ApplicationStatus } from '@/types/event'
+import { Event, EventApplication, AdminEventNotification, EventType, ApplicationStatus, DisplayEventStatus } from '@/types/event'
 
 const EVENTS_COLLECTION = 'events'
 const EVENT_APPLICATIONS_COLLECTION = 'event_applications'
 const ADMIN_NOTIFICATIONS_COLLECTION = 'eventNotifications'
+
+// Helper function to calculate event display status based on dates
+export const getEventDisplayStatus = (event: Event): DisplayEventStatus => {
+  try {
+    const now = new Date()
+    const startDate = event.startDate ? new Date(event.startDate) : null
+    const endDate = event.endDate ? new Date(event.endDate) : null
+    
+    // If event has ended (endDate is in the past)
+    if (endDate && now > endDate) {
+      return 'ended'
+    }
+    
+    // If event hasn't started yet (startDate is in the future)
+    if (startDate && now < startDate) {
+      return 'upcoming'
+    }
+    
+    // Event is currently active
+    return 'active'
+  } catch (error) {
+    console.error('Error calculating event status:', error)
+    // Default to active if date parsing fails
+    return 'active'
+  }
+}
 
 // Event CRUD Operations
 
@@ -84,22 +110,8 @@ export const getActiveEvents = async (): Promise<Event[]> => {
     // Sort by creation date in memory (newest first)
     events.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     
-    // Filter by date range in memory
-    const now = new Date()
-    return events.filter(event => {
-      try {
-        const startDate = event.startDate ? new Date(event.startDate) : null
-        const endDate = event.endDate ? new Date(event.endDate) : null
-        
-        if (startDate && now < startDate) return false
-        if (endDate && now > endDate) return false
-        
-        return true
-      } catch (filterError) {
-        console.error('Error filtering event by date:', event.id, filterError)
-        return true // Include event if date filtering fails
-      }
-    })
+    // Return all events - no date filtering (users can see upcoming, active, and ended events)
+    return events
   } catch (error) {
     console.error('Error getting active events:', error)
     throw new Error('Failed to get active events')
@@ -529,10 +541,26 @@ export const cancelApplication = async (applicationId: string): Promise<void> =>
 
 export const createAdminNotification = async (notificationData: Omit<AdminEventNotification, 'id' | 'timestamp' | 'read'>): Promise<string> => {
   try {
+    // Save with createdAt and userId to match EventNotification interface expected by NotificationService
+    // EventNotification extends BaseNotification which requires userId
+    // Use 'admin' as userId since these are admin notifications visible to all admins
     const docRef = await addDoc(collection(db, ADMIN_NOTIFICATIONS_COLLECTION), {
       ...notificationData,
-      timestamp: serverTimestamp(),
-      read: false
+      userId: 'admin', // Use 'admin' as userId for admin notifications
+      createdAt: serverTimestamp(),
+      timestamp: serverTimestamp(), // Keep timestamp for backward compatibility
+      read: false,
+      // Map to EventNotification structure - ensure all required fields are present
+      eventId: notificationData.eventId,
+      eventTitle: notificationData.eventTitle,
+      applicationId: notificationData.applicationId,
+      applicantName: notificationData.applicantName,
+      type: 'event' as const,
+      // Ensure data object is properly structured
+      data: {
+        actionUrl: `/dashboard/admin/events`,
+        soundType: 'info' as const
+      }
     })
     
     console.log('Admin notification created with ID:', docRef.id)
@@ -545,18 +573,35 @@ export const createAdminNotification = async (notificationData: Omit<AdminEventN
 
 export const getAdminNotifications = async (): Promise<AdminEventNotification[]> => {
   try {
-    const q = query(
+    // Try createdAt first (new format), fallback to timestamp (old format)
+    let q = query(
       collection(db, ADMIN_NOTIFICATIONS_COLLECTION),
-      orderBy('timestamp', 'desc'),
+      orderBy('createdAt', 'desc'),
       limit(50)
     )
     
-    const querySnapshot = await getDocs(q)
-    const notifications = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      timestamp: doc.data().timestamp?.toDate?.() || new Date()
-    })) as AdminEventNotification[]
+    let querySnapshot
+    try {
+      querySnapshot = await getDocs(q)
+    } catch (orderByError) {
+      // If createdAt doesn't exist, try timestamp
+      console.log('Ordering by createdAt failed, trying timestamp')
+      q = query(
+        collection(db, ADMIN_NOTIFICATIONS_COLLECTION),
+        orderBy('timestamp', 'desc'),
+        limit(50)
+      )
+      querySnapshot = await getDocs(q)
+    }
+    
+    const notifications = querySnapshot.docs.map(doc => {
+      const data = doc.data()
+      return {
+        id: doc.id,
+        ...data,
+        timestamp: data.timestamp?.toDate?.() || data.createdAt?.toDate?.() || new Date()
+      }
+    }) as AdminEventNotification[]
     
     return notifications
   } catch (error) {
@@ -599,19 +644,11 @@ export const subscribeToActiveEvents = (callback: (events: Event[]) => void) => 
         endDate: doc.data().endDate?.toDate?.()?.toISOString() || doc.data().endDate
       })) as Event[]
 
-      // Filter by date range
-      const now = new Date()
-      const filteredEvents = events.filter(event => {
-        const startDate = event.startDate ? new Date(event.startDate) : null
-        const endDate = event.endDate ? new Date(event.endDate) : null
-        
-        if (startDate && now < startDate) return false
-        if (endDate && now > endDate) return false
-        
-        return true
-      })
+      // Sort by creation date in memory (newest first)
+      events.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
-      callback(filteredEvents)
+      // Return all events - no date filtering (users can see upcoming, active, and ended events)
+      callback(events)
     })
   } catch (error) {
     console.error('Error subscribing to events:', error)
@@ -644,18 +681,22 @@ export const subscribeToEventApplications = (eventId: string, callback: (applica
 
 export const subscribeToAdminNotifications = (callback: (notifications: AdminEventNotification[]) => void) => {
   try {
+    // Use createdAt to match EventNotification interface expected by NotificationService
     const q = query(
       collection(db, ADMIN_NOTIFICATIONS_COLLECTION),
-      orderBy('timestamp', 'desc'),
+      orderBy('createdAt', 'desc'),
       limit(50)
     )
 
     return onSnapshot(q, (querySnapshot) => {
-      const notifications = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate?.() || new Date()
-      })) as AdminEventNotification[]
+      const notifications = querySnapshot.docs.map(doc => {
+        const data = doc.data()
+        return {
+          id: doc.id,
+          ...data,
+          timestamp: data.timestamp?.toDate?.() || data.createdAt?.toDate?.() || new Date()
+        }
+      }) as AdminEventNotification[]
 
       callback(notifications)
     })

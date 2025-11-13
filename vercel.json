@@ -1,8 +1,28 @@
 {
   "crons": [
     {
-      "path": "/api/cron/mt5-sync",
+      "path": "/api/cron/check-subscription-expiry",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/mt5-streaming-keeper",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/auto-rebalance",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/risk-management-check",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/auto-disconnect-check",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/trade-alerts-daily-summary",
+      "schedule": "0 18 * * *"
     }
   ]
 }

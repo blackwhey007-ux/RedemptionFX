@@ -2,6 +2,8 @@ export type EventType = 'discount_code' | 'service' | 'coaching' | 'live_trading
 
 export type EventStatus = 'active' | 'inactive' | 'completed' | 'cancelled'
 
+export type DisplayEventStatus = 'upcoming' | 'active' | 'ended'
+
 export type ApplicationStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 
 export interface Event {
@@ -110,6 +112,18 @@ export const APPLICATION_STATUS_COLORS: Record<ApplicationStatus, string> = {
   approved: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
   rejected: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400',
   cancelled: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+}
+
+export const DISPLAY_EVENT_STATUS_LABELS: Record<DisplayEventStatus, string> = {
+  upcoming: 'Upcoming',
+  active: 'Active',
+  ended: 'Ended'
+}
+
+export const DISPLAY_EVENT_STATUS_COLORS: Record<DisplayEventStatus, string> = {
+  upcoming: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
+  active: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
+  ended: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
 }
 
 

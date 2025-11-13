@@ -460,18 +460,28 @@ export const CURRENCY_PAIRS: CurrencyPair[] = [
 // Helper functions
 export const getCurrencyPair = (symbol: string): CurrencyPair | undefined => {
   // First try to get from localStorage (for backward compatibility)
-  const savedPairs = localStorage.getItem('customCurrencyPairs')
-  if (savedPairs) {
-    try {
-      const customPairs = JSON.parse(savedPairs)
-      const customPair = customPairs.find((pair: CurrencyPair) => pair.symbol === symbol)
-      if (customPair) return customPair
-    } catch (error) {
-      console.error('Error parsing saved currency pairs:', error)
+  // Only in browser/client-side context
+  // Use try-catch to safely handle server-side contexts where localStorage doesn't exist
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const savedPairs = window.localStorage.getItem('customCurrencyPairs')
+      if (savedPairs) {
+        try {
+          const customPairs = JSON.parse(savedPairs)
+          const customPair = customPairs.find((pair: CurrencyPair) => pair.symbol === symbol)
+          if (customPair) return customPair
+        } catch (error) {
+          console.error('Error parsing saved currency pairs:', error)
+        }
+      }
     }
+  } catch (error) {
+    // localStorage is not available (e.g., in server-side context)
+    // Silently fall through to static data
+    // This is expected in server-side API routes
   }
   
-  // Fallback to static data
+  // Fallback to static data (works in both client and server contexts)
   return CURRENCY_PAIRS.find(pair => pair.symbol === symbol)
 }
 

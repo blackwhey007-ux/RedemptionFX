@@ -13,9 +13,10 @@ export interface BaseNotification {
 
 // User notification types
 export interface UserNotification extends BaseNotification {
-  type: 'welcome' | 'promotion' | 'announcement' | 'system' | 'vip_approved' | 'payment_reminder'
+  type: 'welcome' | 'promotion' | 'announcement' | 'system' | 'vip_approved' | 'payment_reminder' | 'event'
   data?: {
     promotionId?: string
+    eventId?: string
     actionUrl?: string
     soundType?: 'default' | 'success' | 'warning' | 'info' | 'vip_approved' | 'promotion'
   }

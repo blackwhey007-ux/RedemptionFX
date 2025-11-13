@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { updateFirebaseProfile, updateFirebasePassword, updateFirebaseEmail, updateUserData, updateProfilePhoto } from '@/lib/firebaseAuth'
+import { db } from '@/lib/firebaseConfig'
+import { doc, getDoc } from 'firebase/firestore'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,7 +24,8 @@ import {
   Star,
   Crown,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  MessageCircle
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -34,6 +37,8 @@ export default function ProfileSettingsPage() {
   // Form states
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
+  const [telegramUsername, setTelegramUsername] = useState('')
+  const [telegramUserId, setTelegramUserId] = useState('')
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -49,10 +54,29 @@ export default function ProfileSettingsPage() {
 
   // Initialize form with user data
   useEffect(() => {
-    if (user) {
-      setDisplayName(user.displayName || '')
-      setEmail(user.email || '')
+    const loadUserProfile = async () => {
+      if (user) {
+        setDisplayName(user.displayName || '')
+        setEmail(user.email || '')
+        
+        // Load profileSettings from Firestore
+        try {
+          const userDocRef = doc(db, 'users', user.uid)
+          const userDocSnap = await getDoc(userDocRef)
+          
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data()
+            const profileSettings = userData.profileSettings || {}
+            setTelegramUsername(profileSettings.telegramUsername || '')
+            setTelegramUserId(profileSettings.telegramUserId?.toString() || '')
+          }
+        } catch (error) {
+          console.error('Error loading user profile settings:', error)
+        }
+      }
     }
+    
+    void loadUserProfile()
   }, [user])
 
   // Handle photo selection
@@ -170,10 +194,43 @@ export default function ProfileSettingsPage() {
       }
       
       // Update Firestore user document
-      const firestoreResult = await updateUserData(user.uid, {
+      // First, get existing profileSettings to merge
+      const userDocRef = doc(db, 'users', user.uid)
+      const userDocSnap = await getDoc(userDocRef)
+      const existingData = userDocSnap.exists() ? userDocSnap.data() : {}
+      const existingProfileSettings = existingData.profileSettings || {}
+      
+      const updates: any = {
         displayName: displayName.trim(),
-        'profileSettings.displayName': displayName.trim()
-      })
+        profileSettings: {
+          ...existingProfileSettings,
+          displayName: displayName.trim()
+        }
+      }
+      
+      // Update Telegram fields if provided
+      if (telegramUsername.trim()) {
+        updates.profileSettings.telegramUsername = telegramUsername.trim()
+      } else if (telegramUsername.trim() === '' && existingProfileSettings.telegramUsername) {
+        // Allow clearing the field
+        updates.profileSettings.telegramUsername = null
+      }
+      
+      if (telegramUserId.trim()) {
+        const telegramIdNum = parseInt(telegramUserId.trim(), 10)
+        if (!isNaN(telegramIdNum)) {
+          updates.profileSettings.telegramUserId = telegramIdNum
+        } else {
+          toast.error('Telegram User ID must be a valid number')
+          setLoading(false)
+          return
+        }
+      } else if (telegramUserId.trim() === '' && existingProfileSettings.telegramUserId) {
+        // Allow clearing the field
+        updates.profileSettings.telegramUserId = null
+      }
+      
+      const firestoreResult = await updateUserData(user.uid, updates)
       
       if (!firestoreResult.success) {
         throw new Error(firestoreResult.error)
@@ -629,6 +686,81 @@ export default function ProfileSettingsPage() {
                     <>
                       <Lock className="h-4 w-4 mr-2" />
                       Update Password
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Telegram Integration */}
+            <Card className="glass-card border-red-200/20 dark:border-red-800/20 shadow-xl">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <MessageCircle className="h-5 w-5 text-red-600" />
+                  <span>Telegram Integration</span>
+                </CardTitle>
+                <CardDescription>Link your Telegram account to receive trade alerts</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="telegramUsername">Telegram Username</Label>
+                    <Input
+                      id="telegramUsername"
+                      value={telegramUsername}
+                      onChange={(e) => setTelegramUsername(e.target.value)}
+                      placeholder="@username (optional)"
+                      className="border-red-200 dark:border-red-800/50"
+                    />
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Your Telegram username (e.g., @yourusername)
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="telegramUserId">Telegram User ID</Label>
+                    <Input
+                      id="telegramUserId"
+                      type="number"
+                      value={telegramUserId}
+                      onChange={(e) => setTelegramUserId(e.target.value)}
+                      placeholder="123456789 (required for alerts)"
+                      className="border-red-200 dark:border-red-800/50"
+                    />
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Your Telegram numeric user ID (required for receiving trade alerts)
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                  <div className="flex items-start space-x-2">
+                    <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-blue-800 dark:text-blue-300">
+                      <p className="font-medium mb-1">How to get your Telegram User ID:</p>
+                      <ol className="list-decimal list-inside space-y-1 ml-2">
+                        <li>Start a conversation with your Telegram bot</li>
+                        <li>Send <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">/start</code> command</li>
+                        <li>Your User ID will be shown or you can use a bot like @userinfobot</li>
+                        <li>Enter the numeric ID above to receive trade alerts</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                
+                <Button 
+                  onClick={handleProfileUpdate}
+                  disabled={loading}
+                  className="bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-700 hover:to-orange-600 text-white"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Telegram Settings
                     </>
                   )}
                 </Button>

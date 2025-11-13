@@ -1,10 +1,169 @@
-import MetaApi from 'metaapi.cloud-sdk'
-import { db } from './firestore'
+import { db } from './firebaseConfig'
 import { collection, addDoc, updateDoc, doc, getDocs, query, where, orderBy, limit, Timestamp } from 'firebase/firestore'
 import { Trade } from '@/types/trade'
 import { MT5Deal, MT5SyncLog, MT5AccountInfo } from '@/types/mt5'
 
-const metaapi = new MetaApi(process.env.METAAPI_TOKEN!)
+// Lazy load MetaAPI to avoid "window is not defined" error in server-side code
+let MetaApi: any = null
+let metaapi: any = null
+
+/**
+ * Get MetaAPI instance with custom token (lazy loaded)
+ * Uses REST API client for server-side to avoid "window is not defined" error
+ */
+export async function getMetaApiInstance(token?: string): Promise<any> {
+  const tokenToUse = token || process.env.METAAPI_TOKEN
+  if (!tokenToUse) {
+    throw new Error('METAAPI_TOKEN not configured')
+  }
+
+  // For server-side, try using MetaAPI SDK with HTTP API methods
+  // MetaAPI SDK has HTTP API wrapper that works server-side
+  if (typeof window === 'undefined') {
+    try {
+      // Try to use MetaAPI SDK's HTTP API directly
+      // The SDK has HTTP methods that don't require browser objects
+      const MetaApiModule = await import('metaapi.cloud-sdk')
+      const MetaApi = MetaApiModule.default || MetaApiModule
+      
+      // Create MetaAPI instance - SDK may work if we avoid browser-specific methods
+      const metaApiInstance = new MetaApi(tokenToUse)
+      
+      // Use the HTTP API wrapper which should work server-side
+      const httpApi = metaApiInstance.httpClient || metaApiInstance
+      
+      return {
+        token: tokenToUse,
+        metatraderAccountApi: {
+          getAccount: async (accountId: string) => {
+            try {
+              // Try using SDK's HTTP API methods
+              const account = await httpApi.metatraderAccountApi?.getAccount(accountId) || 
+                             await metaApiInstance.metatraderAccountApi?.getAccount(accountId)
+              
+              if (account) {
+                return account
+              }
+            } catch (sdkError) {
+              console.log('SDK method failed, falling back to REST API wrapper:', sdkError instanceof Error ? sdkError.message : 'Unknown error')
+            }
+            
+            // Fallback to REST API wrapper if SDK doesn't work
+            return {
+              id: accountId,
+              token: tokenToUse,
+              getRPCConnection: () => ({
+                connected: false,
+                connect: async () => {
+                  throw new Error('RPC connection not available server-side. Use REST API endpoints instead.')
+                },
+                getPositions: async () => {
+                  const { getPositions } = await import('./metaapiRestClient')
+                  return getPositions(accountId, tokenToUse)
+                },
+                getDeals: async (startTime?: Date, endTime?: Date) => {
+                  const { getDeals } = await import('./metaapiRestClient')
+                  return getDeals(accountId, tokenToUse, undefined, startTime, endTime)
+                },
+                getHistoryOrders: async (startTime?: Date, endTime?: Date) => {
+                  // Try to get order history via SDK RPC if available
+                  try {
+                    if (account && account.getRPCConnection) {
+                      const rpcConn = account.getRPCConnection()
+                      if (rpcConn.getHistoryOrders) {
+                        return await rpcConn.getHistoryOrders(startTime, endTime)
+                      }
+                    }
+                  } catch (error) {
+                    console.log('SDK getHistoryOrders not available, trying REST API fallback')
+                  }
+                  // Fallback: try REST API if available
+                  const { getHistoryOrders } = await import('./metaapiRestClient')
+                  return getHistoryOrders(accountId, tokenToUse, undefined, startTime, endTime)
+                },
+                getOrders: async () => {
+                  // Try to get orders via SDK RPC if available
+                  try {
+                    if (account && account.getRPCConnection) {
+                      const rpcConn = account.getRPCConnection()
+                      if (rpcConn.getOrders) {
+                        return await rpcConn.getOrders()
+                      }
+                    }
+                  } catch (error) {
+                    console.log('SDK getOrders not available, trying REST API fallback')
+                  }
+                  // Fallback: try REST API if available
+                  const { getOrders } = await import('./metaapiRestClient')
+                  return getOrders(accountId, tokenToUse)
+                }
+              }),
+              deploy: async () => {
+                const { ensureAccountDeployed } = await import('./metaapiRestClient')
+                await ensureAccountDeployed(accountId, tokenToUse)
+              },
+              waitConnected: async () => {
+                const { ensureAccountDeployed } = await import('./metaapiRestClient')
+                await ensureAccountDeployed(accountId, tokenToUse)
+              },
+              waitSynchronized: async () => {
+                await new Promise(resolve => setTimeout(resolve, 2000))
+              }
+            }
+          }
+        }
+      }
+    } catch (importError) {
+      console.warn('Could not import MetaAPI SDK server-side, using REST API wrapper:', importError instanceof Error ? importError.message : 'Unknown')
+      
+      // Fallback to REST API wrapper
+      return {
+        token: tokenToUse,
+        metatraderAccountApi: {
+          getAccount: async (accountId: string) => {
+            return {
+              id: accountId,
+              token: tokenToUse,
+              getRPCConnection: () => ({
+                connected: false,
+                connect: async () => {
+                  throw new Error('RPC connection not available server-side.')
+                },
+                getPositions: async () => {
+                  const { getPositions } = await import('./metaapiRestClient')
+                  return getPositions(accountId, tokenToUse)
+                }
+              }),
+              deploy: async () => {
+                const { ensureAccountDeployed } = await import('./metaapiRestClient')
+                await ensureAccountDeployed(accountId, tokenToUse)
+              },
+              waitConnected: async () => {
+                const { ensureAccountDeployed } = await import('./metaapiRestClient')
+                await ensureAccountDeployed(accountId, tokenToUse)
+              },
+              waitSynchronized: async () => {
+                await new Promise(resolve => setTimeout(resolve, 2000))
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // Client-side: use SDK
+  if (!MetaApi) {
+    MetaApi = (await import('metaapi.cloud-sdk')).default
+  }
+  
+  if (!metaapi || metaapi.token !== tokenToUse) {
+    metaapi = new MetaApi(tokenToUse)
+    metaapi.token = tokenToUse
+  }
+  
+  return metaapi
+}
 
 // VIP profile ID for storing MT5 trades
 const VIP_PROFILE_ID = 'vip-showcase'
@@ -20,7 +179,8 @@ export async function connectVipAccount(): Promise<{ success: boolean; account?:
       throw new Error('MT5_ACCOUNT_ID not configured')
     }
 
-    const account = await metaapi.metatraderAccountApi.getAccount(accountId)
+    const apiInstance = await getMetaApiInstance()
+    const account = await apiInstance.metatraderAccountApi.getAccount(accountId)
     await account.deploy()
     await account.waitConnected()
 
@@ -41,7 +201,8 @@ export async function getVipAccountInfo(): Promise<MT5AccountInfo | null> {
       throw new Error('MT5_ACCOUNT_ID not configured')
     }
 
-    const account = await metaapi.metatraderAccountApi.getAccount(accountId)
+    const apiInstance = await getMetaApiInstance()
+    const account = await apiInstance.metatraderAccountApi.getAccount(accountId)
     const connection = account.getRPCConnection()
     
     if (!connection.connected) {
@@ -70,6 +231,74 @@ export async function getVipAccountInfo(): Promise<MT5AccountInfo | null> {
 }
 
 /**
+ * Get open positions from MT5 account
+ */
+export async function getMT5Positions(accountId?: string, token?: string): Promise<any[]> {
+  try {
+    const accountIdToUse = accountId || process.env.MT5_ACCOUNT_ID
+    if (!accountIdToUse) {
+      throw new Error('MT5_ACCOUNT_ID not configured')
+    }
+
+    const tokenToUse = token || process.env.METAAPI_TOKEN
+    if (!tokenToUse) {
+      throw new Error('METAAPI_TOKEN not configured')
+    }
+
+    console.log('Connecting to MT5 account:', { accountId: accountIdToUse, hasToken: !!tokenToUse })
+
+    // Use custom token if provided, otherwise use default instance (now async)
+    const apiInstance = await getMetaApiInstance(tokenToUse)
+    
+    // For server-side, always use REST API (SDK doesn't work server-side)
+    if (typeof window === 'undefined') {
+      console.log('Server-side detected, using REST API for positions with London default...')
+      // London endpoint is default in metaapiRestClient, so we can pass undefined
+      const { getPositions: getPositionsRest } = await import('./metaapiRestClient')
+      const positions = await getPositionsRest(accountIdToUse, tokenToUse, undefined) // London will be used by default
+      console.log(`Found ${positions.length} open positions via REST API`)
+      return positions
+    }
+    
+    // Client-side: use SDK RPC connection
+    console.log('Getting account from MetaAPI...')
+    const account = await apiInstance.metatraderAccountApi.getAccount(accountIdToUse)
+    
+    console.log('Deploying account...')
+    await account.deploy()
+    
+    console.log('Waiting for account connection...')
+    await account.waitConnected()
+    
+    console.log('Getting RPC connection...')
+    const connection = account.getRPCConnection()
+    
+    if (!connection.connected) {
+      console.log('Connecting RPC...')
+      await connection.connect()
+      console.log('Waiting for synchronization...')
+      await account.waitSynchronized()
+    }
+
+    console.log('Getting positions via RPC...')
+    const positions = await connection.getPositions()
+    console.log(`Found ${positions.length} open positions from MT5`)
+    
+    return positions
+  } catch (error) {
+    console.error('Error getting MT5 positions:', error)
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      })
+    }
+    throw error
+  }
+}
+
+/**
  * Sync VIP trades from MT5
  */
 export async function syncVipTrades(startDate: Date, endDate: Date): Promise<{ success: boolean; summary?: any; error?: string }> {
@@ -79,7 +308,8 @@ export async function syncVipTrades(startDate: Date, endDate: Date): Promise<{ s
       throw new Error('MT5_ACCOUNT_ID not configured')
     }
 
-    const account = await metaapi.metatraderAccountApi.getAccount(accountId)
+    const apiInstance = await getMetaApiInstance()
+    const account = await apiInstance.metatraderAccountApi.getAccount(accountId)
     const connection = account.getRPCConnection()
     
     if (!connection.connected) {

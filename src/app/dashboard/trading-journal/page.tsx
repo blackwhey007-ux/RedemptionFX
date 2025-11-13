@@ -140,16 +140,26 @@ function TradingJournalPageContent() {
   }, [currentProfile?.id])
 
   // Reload trades when component becomes visible (user navigates back to page)
+  // Debounced to reduce excessive Firestore reads
   useEffect(() => {
+    let debounceTimer: NodeJS.Timeout
+    
     const handleVisibilityChange = () => {
       if (!document.hidden && currentProfile?.id) {
-        console.log('Trading Journal: Page became visible, reloading trades')
-        loadTrades()
+        // Debounce reload by 2 seconds to avoid rapid refetching
+        clearTimeout(debounceTimer)
+        debounceTimer = setTimeout(() => {
+          console.log('Trading Journal: Page became visible, reloading trades')
+          loadTrades()
+        }, 2000)
       }
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      clearTimeout(debounceTimer)
+    }
   }, [currentProfile?.id])
 
   // No need to save to localStorage since we're using Firestore

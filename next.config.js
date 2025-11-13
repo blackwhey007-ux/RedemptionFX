@@ -1,13 +1,20 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Explicitly configure the app directory
-  experimental: {
-    appDir: true,
-  },
   // Configure Next.js to look in src directory
   pageExtensions: ['ts', 'tsx', 'js', 'jsx'],
   reactStrictMode: true,
-  swcMinify: true,
+  
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Externalize MetaAPI SDK for server-side to avoid "window is not defined" error
+      // We'll use dynamic import with special handling instead
+      config.externals = config.externals || []
+      config.externals.push({
+        'metaapi.cloud-sdk': 'commonjs metaapi.cloud-sdk'
+      })
+    }
+    return config
+  },
 }
 
 module.exports = nextConfig

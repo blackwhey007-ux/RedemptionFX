@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardDecorativeOrb } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { StatsCard } from '@/components/ui/stats-card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/contexts/AuthContext'
-import { useProfile } from '@/contexts/ProfileContext'
-import { ProfileSelector } from '@/components/dashboard/profile-selector'
+import { AccountSelector } from '@/components/dashboard/account-selector'
+import { getActiveAccount, LinkedAccount } from '@/lib/accountService'
 import { Trade } from '@/types/trade'
-import { getTradesByProfile } from '@/lib/tradeService'
+import { getTradesByAccount } from '@/lib/tradeService'
 import { calculateAnalytics } from '@/lib/analyticsService'
 import { ProfitLossChart } from '@/components/analytics/ProfitLossChart'
 import { WinnersLosersBreakdown } from '@/components/analytics/WinnersLosersBreakdown'
@@ -20,32 +22,73 @@ import { PerformanceByMonth } from '@/components/analytics/PerformanceByMonth'
 import { PerformanceCalendar } from '@/components/analytics/PerformanceCalendar'
 import { TradeFrequency } from '@/components/analytics/TradeFrequency'
 import { WithdrawCalculator } from '@/components/analytics/WithdrawCalculator'
-import { BarChart3, User } from 'lucide-react'
+import { BarChart3, User, TrendingUp, Target, Percent, DollarSign } from 'lucide-react'
 
 export default function AnalyticsPage() {
   const { user: authUser } = useAuth()
-  const { currentProfile, userRole, isLoading: profileLoading } = useProfile()
   const router = useRouter()
   
+  const [activeAccount, setActiveAccount] = useState<LinkedAccount | null>(null)
   const [trades, setTrades] = useState<Trade[]>([])
   const [tradesLoading, setTradesLoading] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [accountsLoading, setAccountsLoading] = useState(true)
 
-  // Load trades from Firestore when profile changes
+  // Load active account
+  useEffect(() => {
+    const loadAccount = async () => {
+      if (!authUser?.uid) return
+      try {
+        setAccountsLoading(true)
+        const account = await getActiveAccount(authUser.uid)
+        setActiveAccount(account)
+      } catch (error) {
+        console.error('Error loading active account:', error)
+      } finally {
+        setAccountsLoading(false)
+      }
+    }
+    loadAccount()
+  }, [authUser?.uid])
+
+  // Load trades from Firestore when account changes
   useEffect(() => {
     const loadTrades = async () => {
-      if (!currentProfile?.id) {
-        console.log('Analytics: No profile selected, clearing trades')
+      if (!activeAccount || !authUser?.uid) {
+        console.log('Analytics: No account selected, clearing trades')
+        setTrades([])
+        return
+      }
+
+      // Get the actual MT5 account ID
+      let accountId = activeAccount.mt5AccountId
+      if (!accountId && activeAccount.copyTradingAccountId) {
+        try {
+          const { listUserCopyTradingAccounts } = await import('@/lib/copyTradingRepo')
+          const { getMasterStrategy } = await import('@/lib/copyTradingRepo')
+          const copyAccounts = await listUserCopyTradingAccounts(authUser.uid)
+          const copyAccount = copyAccounts.find(acc => acc.accountId === activeAccount.copyTradingAccountId)
+          if (copyAccount) {
+            const masterStrategy = await getMasterStrategy(copyAccount.strategyId)
+            accountId = masterStrategy?.accountId
+          }
+        } catch (error) {
+          console.error('Error getting account ID for copy trading:', error)
+        }
+      }
+
+      if (!accountId) {
+        console.log('Analytics: No account ID found')
         setTrades([])
         return
       }
 
       try {
-        console.log(`Analytics: Loading trades for profile ${currentProfile.id}`)
+        console.log(`Analytics: Loading trades for account ${accountId}`)
         setTradesLoading(true)
-        const profileTrades = await getTradesByProfile(currentProfile.id)
-        console.log(`Analytics: Loaded ${profileTrades.length} trades for profile ${currentProfile.id}`)
-        setTrades(profileTrades)
+        const accountTrades = await getTradesByAccount(authUser.uid, accountId)
+        console.log(`Analytics: Loaded ${accountTrades.length} trades for account ${accountId}`)
+        setTrades(accountTrades)
       } catch (error) {
         console.error('Analytics: Error loading trades from Firestore:', error)
         setTrades([])
@@ -56,99 +99,123 @@ export default function AnalyticsPage() {
     }
 
     loadTrades()
-  }, [currentProfile?.id])
+  }, [activeAccount?.id, authUser?.uid])
 
-  // Calculate analytics data using profile's starting balance
-  const analyticsData = calculateAnalytics(trades, undefined, currentProfile?.startingBalance)
+  // Calculate analytics data (no starting balance needed for account-based system)
+  const analyticsData = calculateAnalytics(trades, undefined, undefined)
 
   // Loading state
-  if (profileLoading) {
+  if (accountsLoading) {
     return (
       <div className="flex items-center justify-center min-h-96">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-red-200 border-t-red-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-600 dark:text-slate-400">Loading trading profiles...</p>
+          <p className="text-slate-600 dark:text-slate-400">Loading accounts...</p>
         </div>
       </div>
     )
   }
 
-  // No profile selected
-  if (!currentProfile) {
+  // No account linked
+  if (!activeAccount) {
     return (
-      <div className="space-y-8">
-        <div className="text-center py-12">
-          <User className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">No Profile Selected</h2>
-          <p className="text-slate-600 dark:text-slate-400 mb-6">
-            Please select a trading profile to view analytics.
-          </p>
-          <ProfileSelector 
-            onCreateProfile={() => {
-              router.push('/dashboard/profiles')
-            }}
-            onManageProfiles={() => {
-              router.push('/dashboard/profiles')
-            }}
-          />
-        </div>
+      <div className="max-w-7xl mx-auto">
+        <Card variant="glass">
+          <CardDecorativeOrb color="blue" />
+          <CardContent className="relative z-10 text-center py-12">
+            <User className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-6" />
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">No Account Linked</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Please link an account to view analytics.
+            </p>
+            <AccountSelector 
+              onAccountLinked={async () => {
+                const account = await getActiveAccount(authUser?.uid || '')
+                setActiveAccount(account)
+              }}
+              onAccountChanged={(accountLinkId) => {
+                // Reload trades when account changes
+              }}
+            />
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
   return (
-    <div className="space-y-8">
-      {/* Analytics Management */}
-      <Card className="bg-gradient-to-br from-white to-red-50/30 dark:from-black dark:to-red-900/10 border-red-500/30 dark:border-red-500/50 shadow-xl shadow-red-500/20">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <BarChart3 className="w-6 h-6 text-red-500" />
-                Analytics Management
-              </CardTitle>
-              <CardDescription className="text-slate-600 dark:text-slate-400 mt-2">
-                Comprehensive trading performance analysis and insights
-              </CardDescription>
-            </div>
-            
-            {/* Profile Selector */}
-            <div className="flex items-center space-x-4">
-              <ProfileSelector 
-                onCreateProfile={() => {
-                  router.push('/dashboard/profiles')
-                }}
-                onManageProfiles={() => {
-                  router.push('/dashboard/profiles')
-                }}
-              />
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+    <div className="max-w-7xl mx-auto space-y-6 w-full box-border">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <BarChart3 className="h-6 w-6 text-blue-500" />
+            Trading Analytics
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            Comprehensive performance analysis and insights
+          </p>
+        </div>
+        
+        {/* Account info shown in stats */}
+      </div>
+
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatsCard
+          title="Total Trades"
+          value={analyticsData?.totalTrades || 0}
+          trend={`${analyticsData?.totalLong || 0} longs, ${analyticsData?.totalShort || 0} shorts`}
+          icon={Target}
+          decorativeColor="blue"
+        />
+        <StatsCard
+          title="Net Profit"
+          value={`$${(analyticsData?.netProfit || 0).toFixed(2)}`}
+          trend={(analyticsData?.netProfit || 0) >= 0 ? '↑ Profitable' : '↓ Loss'}
+          icon={DollarSign}
+          decorativeColor={(analyticsData?.netProfit || 0) >= 0 ? "green" : "phoenix"}
+        />
+        <StatsCard
+          title="Win Rate"
+          value={`${analyticsData?.winRate || 0}%`}
+          trend={`${analyticsData?.winners || 0} of ${analyticsData?.totalTrades || 0} trades`}
+          icon={Percent}
+          decorativeColor={(analyticsData?.winRate || 0) >= 50 ? "green" : "gold"}
+        />
+        <StatsCard
+          title="Profit Factor"
+          value={(analyticsData?.profitFactor || 0).toFixed(2)}
+          trend={(analyticsData?.profitFactor || 0) >= 1.5 ? 'Excellent' : (analyticsData?.profitFactor || 0) >= 1 ? 'Good' : 'Needs work'}
+          icon={TrendingUp}
+          decorativeColor={(analyticsData?.profitFactor || 0) >= 1.5 ? "green" : (analyticsData?.profitFactor || 0) >= 1 ? "gold" : "phoenix"}
+        />
+      </div>
 
       {/* Analytics Content */}
       {tradesLoading ? (
-        <Card className="bg-white/80 dark:bg-black/90 backdrop-blur-sm border-red-500/30 dark:border-red-500/50 shadow-xl shadow-red-500/20">
-          <CardContent className="text-center py-12">
-            <div className="w-8 h-8 border-4 border-red-200 border-t-red-600 rounded-full animate-spin mx-auto mb-4"></div>
-            <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-2">Loading analytics...</h3>
-            <p className="text-slate-500 dark:text-slate-400">
+        <Card variant="glass">
+          <CardDecorativeOrb color="blue" />
+          <CardContent className="relative z-10 text-center py-12">
+            <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Loading analytics...</h3>
+            <p className="text-gray-500 dark:text-gray-400">
               Please wait while we calculate your trading performance metrics.
             </p>
           </CardContent>
         </Card>
       ) : trades.length === 0 ? (
-        <Card className="bg-white/80 dark:bg-black/90 backdrop-blur-sm border-red-500/30 dark:border-red-500/50 shadow-xl shadow-red-500/20">
-          <CardContent className="text-center py-12">
-            <BarChart3 className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-2">No trades found</h3>
-            <p className="text-slate-500 dark:text-slate-400 mb-4">
+        <Card variant="glass">
+          <CardDecorativeOrb color="blue" />
+          <CardContent className="relative z-10 text-center py-12">
+            <BarChart3 className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-6" />
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No trades found</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">
               Start adding trades to see comprehensive analytics and insights.
             </p>
             <Button
               onClick={() => router.push('/dashboard/trading-journal')}
-              className="bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-700 hover:to-orange-600 text-white"
+              variant="premium"
             >
               Go to Trading Journal
             </Button>
@@ -186,7 +253,7 @@ export default function AnalyticsPage() {
           {/* Withdraw Calculator */}
           <WithdrawCalculator 
             data={analyticsData} 
-            startingBalance={currentProfile?.startingBalance || 0}
+            startingBalance={0}
           />
         </div>
       )}

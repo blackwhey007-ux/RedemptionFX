@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardDecorativeOrb } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { StatsCard } from '@/components/ui/stats-card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { 
   Plus, 
@@ -19,7 +20,10 @@ import {
   Filter,
   Edit3,
   Trash2 as TrashIcon,
-  Plus as PlusIcon
+  Plus as PlusIcon,
+  DollarSign,
+  TrendingUp,
+  Activity
 } from 'lucide-react'
 import { CURRENCY_PAIRS, getPriceColor, formatRealPrice, getCategoryIcon } from '@/lib/currencyDatabase'
 import { CurrencyDatabaseService } from '@/lib/currencyDatabaseService'
@@ -164,23 +168,25 @@ export default function CurrencyDatabasePage() {
     )
   }
 
-  return (
-    <div className="space-y-8">
+  const forexPairs = filteredCurrencyPairs.filter(p => p.category === 'forex').length
+  const indicesPairs = filteredCurrencyPairs.filter(p => p.category === 'indices').length
+  const commoditiesPairs = filteredCurrencyPairs.filter(p => p.category === 'commodities').length
+  const cryptoPairs = filteredCurrencyPairs.filter(p => p.category === 'crypto').length
 
-      {/* Currency Database Management */}
-      <Card className="bg-gradient-to-br from-white to-red-50/30 dark:from-black dark:to-red-900/10 border-red-500/30 dark:border-red-500/50 shadow-xl shadow-red-500/20">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Database className="w-6 h-6 text-red-500" />
-                Currency Database Management
-              </CardTitle>
-              <CardDescription className="text-slate-600 dark:text-slate-400 mt-2">
-                Edit and manage all currency pairs, indices, and commodities for automatic pip calculation
-              </CardDescription>
-            </div>
-            <Button 
+  return (
+    <div className="max-w-7xl mx-auto space-y-6 w-full box-border">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <Database className="h-6 w-6 text-blue-500" />
+            Currency Database
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            Manage currency pairs, indices, and commodities for pip calculation
+          </p>
+        </div>
+        <Button 
               onClick={() => {
                 setEditingPair({
                   symbol: '',
@@ -197,14 +203,49 @@ export default function CurrencyDatabasePage() {
                 })
                 setIsAddingPair(true)
               }}
-              className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white"
+              variant="premium"
             >
               <Plus className="w-4 h-4 mr-2" />
-              Add New Pair
+              Add Pair
             </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatsCard
+          title="Total Pairs"
+          value={filteredCurrencyPairs.length}
+          trend={`${currencyPairs.length} in database`}
+          icon={Database}
+          decorativeColor="blue"
+        />
+        <StatsCard
+          title="Forex Pairs"
+          value={forexPairs}
+          trend="Currency pairs"
+          icon={Database}
+          decorativeColor="green"
+        />
+        <StatsCard
+          title="Indices"
+          value={indicesPairs}
+          trend="Stock indices"
+          icon={TrendingUp}
+          decorativeColor="gold"
+        />
+        <StatsCard
+          title="Others"
+          value={commoditiesPairs + cryptoPairs}
+          trend={`${commoditiesPairs} comm, ${cryptoPairs} crypto`}
+          icon={Activity}
+          decorativeColor="phoenix"
+        />
+      </div>
+
+      {/* Main Card */}
+      <Card variant="glass">
+        <CardDecorativeOrb color="blue" />
+        <CardContent className="relative z-10">
           {/* Search and Filter */}
           <div className="flex flex-col md:flex-row gap-4 mb-6">
             <div className="flex-1">

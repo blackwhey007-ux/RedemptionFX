@@ -20,6 +20,7 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebaseConfig'
 import { getDateFromTimestamp, getTimestampMillis } from './utils/timestamp'
+import { cacheManager } from './cacheManager'
 import { 
   Notification, 
   CreateNotification, 
@@ -415,12 +416,14 @@ export class NotificationService {
       const batch = writeBatch(db)
       let totalUpdates = 0
       
-      // Mark user notifications as read
+      // Mark user notifications as read (limited to 20 most recent)
       console.log('🔔 Fetching unread user notifications...')
       const userNotificationsQuery = query(
         collection(db, 'user_notifications'),
         where('userId', '==', userId),
-        where('read', '==', false)
+        where('read', '==', false),
+        orderBy('createdAt', 'desc'),
+        limit(20)
       )
       const userSnapshot = await getDocs(userNotificationsQuery)
       console.log('🔔 Found', userSnapshot.docs.length, 'unread user notifications')
@@ -433,25 +436,33 @@ export class NotificationService {
         totalUpdates++
       })
 
-      // Mark signal notifications as read (add user to readBy)
+      // Mark signal notifications as read (add user to readBy, limited to 20)
       if (userRole === 'admin' || userRole === 'vip' || userRole === 'guest') {
         console.log('🔔 Fetching signal notifications not read by user...')
         const signalNotificationsQuery = query(
           collection(db, 'signalNotifications'),
-          where('readBy', 'not-in', [userId])
+          orderBy('createdAt', 'desc'),
+          limit(20)
         )
         const signalSnapshot = await getDocs(signalNotificationsQuery)
-        console.log('🔔 Found', signalSnapshot.docs.length, 'signal notifications not read by user')
+        
+        // Filter in memory for unread by this user
+        const unreadSignals = signalSnapshot.docs.filter(doc => {
+          const readBy = doc.data().readBy || []
+          return !readBy.includes(userId)
+        })
+        
+        console.log('🔔 Found', unreadSignals.length, 'signal notifications not read by user')
         
         // Add signal notifications to batch using arrayUnion
-        signalSnapshot.docs.forEach(doc => {
+        unreadSignals.forEach(doc => {
           batch.update(doc.ref, {
             readBy: arrayUnion(userId),
             updatedAt: Timestamp.now()
           })
           totalUpdates++
         })
-        console.log('🔔 Added', signalSnapshot.docs.length, 'signal notifications to batch')
+        console.log('🔔 Added', unreadSignals.length, 'signal notifications to batch')
       }
 
       console.log('🔔 Total updates to commit:', totalUpdates)
@@ -459,6 +470,9 @@ export class NotificationService {
       if (totalUpdates > 0) {
         await batch.commit()
         console.log('✅ Successfully committed', totalUpdates, 'updates to Firestore')
+        
+        // Invalidate notification stats cache
+        cacheManager.invalidatePattern(`notificationStats:${userId}`)
       } else {
         console.log('ℹ️ No notifications to mark as read')
       }
@@ -474,10 +488,22 @@ export class NotificationService {
     }
   }
 
-  // Get notification statistics
+  // Get notification statistics (with caching)
   static async getNotificationStats(userId: string, userRole: string): Promise<NotificationStats> {
     try {
-      const { notifications } = await this.getNotifications(userId, userRole, {}, { limit: 1000, orderBy: 'createdAt', orderDirection: 'desc' })
+      // Check cache first
+      const cacheKey = `notificationStats:${userId}:${userRole}`
+      const cached = cacheManager.getTyped<NotificationStats>('notificationStats', cacheKey)
+      
+      if (cached) {
+        console.log('📊 Using cached notification stats')
+        return cached
+      }
+
+      console.log('📊 Fetching notification stats from Firestore')
+      
+      // Reduced limit from 1000 to 100 to save reads
+      const { notifications } = await this.getNotifications(userId, userRole, {}, { limit: 100, orderBy: 'createdAt', orderDirection: 'desc' })
       
       const unread = notifications.filter(n => !n.read).length
       const byType: Record<string, number> = {}
@@ -500,7 +526,7 @@ export class NotificationService {
 
       const lastNotification = notifications.length > 0 ? getDateFromTimestamp(notifications[0].createdAt) : undefined
 
-      return {
+      const stats = {
         total: notifications.length,
         unread,
         byType,
@@ -510,6 +536,11 @@ export class NotificationService {
           notificationsThisWeek
         }
       }
+
+      // Cache the stats
+      cacheManager.setTyped('notificationStats', cacheKey, stats)
+
+      return stats
     } catch (error) {
       console.error('Error getting notification stats:', error)
       throw error
@@ -550,13 +581,13 @@ export class NotificationService {
       )
     }
 
-    // User notifications listener
+    // User notifications listener (reduced from 50 to 20 documents)
     const userNotificationsRef = collection(db, 'user_notifications')
     let userQuery = query(
       userNotificationsRef,
       where('userId', '==', userId),
       orderBy('createdAt', 'desc'),
-      limit(50)
+      limit(20)
     )
 
     if (filters.type) {
@@ -585,13 +616,13 @@ export class NotificationService {
 
     unsubscribes.push(userUnsubscribe)
 
-    // Signal notifications listener (only for non-admin users)
+    // Signal notifications listener (only for non-admin users, reduced from 50 to 20)
     if (userRole === 'vip' || userRole === 'guest') {
       const signalNotificationsRef = collection(db, 'signalNotifications')
       const signalQuery = query(
         signalNotificationsRef,
         orderBy('createdAt', 'desc'),
-        limit(50)
+        limit(20)
       )
 
       const signalUnsubscribe = onSnapshot(
@@ -625,13 +656,13 @@ export class NotificationService {
       unsubscribes.push(signalUnsubscribe)
     }
 
-    // Admin notifications listener (only for admin users)
+    // Admin notifications listener (only for admin users, reduced from 50 to 20)
     if (userRole === 'admin') {
       const adminNotificationsRef = collection(db, 'adminNotifications')
       const adminQuery = query(
         adminNotificationsRef,
         orderBy('createdAt', 'desc'),
-        limit(50)
+        limit(20)
       )
 
       const adminUnsubscribe = onSnapshot(
@@ -657,13 +688,13 @@ export class NotificationService {
       unsubscribes.push(adminUnsubscribe)
     }
 
-    // Event notifications listener (only for admin users)
+    // Event notifications listener (only for admin users, reduced from 50 to 20)
     if (userRole === 'admin') {
       const eventNotificationsRef = collection(db, 'eventNotifications')
       const eventQuery = query(
         eventNotificationsRef,
         orderBy('createdAt', 'desc'),
-        limit(50)
+        limit(20)
       )
 
       const eventUnsubscribe = onSnapshot(

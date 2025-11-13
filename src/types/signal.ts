@@ -26,6 +26,7 @@ export interface Signal {
   sentToTelegram?: boolean // Track if sent successfully
   telegramSentAt?: Date // Timestamp of Telegram send
   telegramChatId?: string // Store chat ID for updates
+  telegramError?: string // Store error message if Telegram send failed
 }
 
 export interface SignalNotification {

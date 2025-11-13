@@ -10,47 +10,25 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
-import { CsvImportPanel } from '@/components/admin/CsvImportPanel'
-import { ApiSetupPanel } from '@/components/admin/ApiSetupPanel'
-import { SyncMethodSelector } from '@/components/admin/SyncMethodSelector'
+import { OpenTradesPanel } from '@/components/admin/OpenTradesPanel'
+import { MT5TradeHistoryPanel } from '@/components/admin/MT5TradeHistoryPanel'
 // Removed profile imports - VIP Results now shows signals only
 import { PromotionalContentService, PromotionalContent } from '@/lib/promotionalContentService'
 import { 
   RefreshCw, 
   Activity, 
-  CheckCircle, 
-  XCircle, 
-  AlertCircle,
-  Clock,
-  TrendingUp,
-  Database,
-  Upload,
-  Settings,
-  Trash2,
-  User,
   Save,
   Megaphone,
-  Target,
   Eye,
-  Edit
+  Edit,
+  History,
+  Target,
+  CheckCircle,
+  XCircle
 } from 'lucide-react'
 
-interface SyncLog {
-  id: string
-  syncedAt: string
-  tradesImported: number
-  tradesUpdated: number
-  errors: string[]
-  status: 'success' | 'partial' | 'failed'
-}
-
 export default function VipSyncPage() {
-  const [syncLogs, setSyncLogs] = useState<SyncLog[]>([])
-  const [syncing, setSyncing] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [syncMethod, setSyncMethod] = useState<'manual' | 'api'>('manual')
-  const [deleting, setDeleting] = useState(false)
-  const [deleteConfirm, setDeleteConfirm] = useState(false)
   
   // Removed profile selection state - VIP Results now shows signals only
   
@@ -61,19 +39,6 @@ export default function VipSyncPage() {
   }>({ hero: null, cta: null })
   const [savingContent, setSavingContent] = useState(false)
   const [editingContent, setEditingContent] = useState<PromotionalContent | null>(null)
-
-  const fetchSyncLogs = async () => {
-    try {
-      // For now, return empty array since API endpoint doesn't exist yet
-      // In the future, this will fetch from the actual API
-      setSyncLogs([])
-    } catch (error) {
-      console.error('Error fetching sync logs:', error)
-      setSyncLogs([])
-    }
-  }
-
-  // Removed profile loading and saving functions - VIP Results now shows signals only
 
   // Load promotional content
   const loadPromotionalContent = async () => {
@@ -146,97 +111,15 @@ export default function VipSyncPage() {
     }
   }
 
-  const triggerSync = async () => {
-    setSyncing(true)
-    try {
-      // For now, simulate a sync since API endpoint doesn't exist yet
-      // In the future, this will call the actual API
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      // Simulate successful sync
-      alert('Sync completed successfully! (Demo mode)\nImported: 0 trades\nUpdated: 0 trades')
-      
-      // Refresh sync logs
-      await fetchSyncLogs()
-    } catch (error) {
-      console.error('Error triggering sync:', error)
-      alert('Error triggering sync')
-    } finally {
-      setSyncing(false)
-    }
-  }
-
-  const deleteAllVipTrades = async () => {
-    if (!deleteConfirm) {
-      setDeleteConfirm(true)
-      return
-    }
-
-    setDeleting(true)
-    try {
-      const response = await fetch('/api/admin/vip-sync/delete', {
-        method: 'DELETE'
-      })
-      
-      const data = await response.json()
-      
-      if (data.success) {
-        alert(`Successfully deleted ${data.deletedTrades} VIP trades and ${data.deletedLogs} import logs!`)
-        setDeleteConfirm(false)
-        // Refresh sync logs
-        await fetchSyncLogs()
-      } else {
-        alert(`Error deleting VIP trades: ${data.error}`)
-      }
-    } catch (error) {
-      console.error('Error deleting VIP trades:', error)
-      alert('Error deleting VIP trades')
-    } finally {
-      setDeleting(false)
-    }
-  }
-
   useEffect(() => {
     const loadData = async () => {
       setLoading(true)
-      await Promise.all([
-        fetchSyncLogs(),
-        loadPromotionalContent()
-      ])
+      await loadPromotionalContent()
       setLoading(false)
     }
     
     loadData()
   }, [])
-
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
-    
-    if (diffInMinutes < 1) return 'Just now'
-    if (diffInMinutes < 60) return `${diffInMinutes}m ago`
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`
-    return `${Math.floor(diffInMinutes / 1440)}d ago`
-  }
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'success': return <CheckCircle className="h-4 w-4 text-green-500" />
-      case 'partial': return <AlertCircle className="h-4 w-4 text-yellow-500" />
-      case 'failed': return <XCircle className="h-4 w-4 text-red-500" />
-      default: return <Activity className="h-4 w-4 text-gray-500" />
-    }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'success': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-      case 'partial': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-      case 'failed': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
-    }
-  }
 
   if (loading) {
     return (
@@ -258,124 +141,16 @@ export default function VipSyncPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="sync-method" className="space-y-6">
+      <Tabs defaultValue="open-trades" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="sync-method">Sync Method</TabsTrigger>
-          <TabsTrigger value="manual-import">Manual Import</TabsTrigger>
-          <TabsTrigger value="api-setup">API Setup</TabsTrigger>
-          <TabsTrigger value="data-management">Data Management</TabsTrigger>
+          <TabsTrigger value="open-trades">Live Positions</TabsTrigger>
+          <TabsTrigger value="mt5-history">Trade History</TabsTrigger>
           <TabsTrigger value="promotional-content">Promotional Content</TabsTrigger>
-          <TabsTrigger value="sync-history">Sync History</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="sync-method" className="space-y-6">
-          {/* VIP Results Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5" />
-                VIP Results Configuration
-              </CardTitle>
-              <CardDescription>
-                VIP Results page now displays signals sent by admin instead of MT5 trades
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
-                      VIP Results Updated
-                    </h4>
-                    <p className="text-sm text-blue-700 dark:text-blue-300">
-                      The VIP Results page now shows VIP signals instead of MT5 trades. 
-                      Profile selection has been removed from VIP Results and is only available in the Trading Journal for personal trades.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Sync Method Selector */}
-          <SyncMethodSelector
-            currentMethod={syncMethod}
-            onMethodChange={setSyncMethod}
-            manualStats={{
-              lastUpload: '2024-01-15T10:30:00Z',
-              totalImports: 5
-            }}
-            apiStats={{
-              lastSync: '2024-01-15T10:30:00Z',
-              nextSync: '2024-01-15T10:45:00Z',
-              status: 'disconnected'
-            }}
-          />
-        </TabsContent>
-
-        <TabsContent value="manual-import" className="space-y-6">
-          {/* Manual CSV Import */}
-          <CsvImportPanel />
-        </TabsContent>
-
-        <TabsContent value="api-setup" className="space-y-6">
-          {/* API Setup */}
-          <ApiSetupPanel />
-        </TabsContent>
-
-        <TabsContent value="data-management" className="space-y-6">
-          {/* Data Management */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Database className="h-5 w-5" />
-                Data Management
-              </CardTitle>
-              <CardDescription>
-                Manage VIP trading data and clear imported trades
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="p-4 border border-red-200 dark:border-red-800 rounded-lg bg-red-50 dark:bg-red-900/20">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
-                  <div className="flex-1">
-                    <h4 className="font-medium text-red-800 dark:text-red-200 mb-2">
-                      Delete All VIP Trades
-                    </h4>
-                    <p className="text-sm text-red-700 dark:text-red-300 mb-4">
-                      This will permanently delete all imported VIP trades and import logs. 
-                      This action cannot be undone.
-                    </p>
-                    {deleteConfirm && (
-                      <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-4">
-                        ⚠️ Are you sure you want to delete all VIP trades? Click the button again to confirm.
-                      </p>
-                    )}
-                    <Button
-                      onClick={deleteAllVipTrades}
-                      disabled={deleting}
-                      variant="destructive"
-                      className="flex items-center gap-2"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      {deleting ? 'Deleting...' : deleteConfirm ? 'Confirm Delete All' : 'Delete All VIP Trades'}
-                    </Button>
-                    {deleteConfirm && (
-                      <Button
-                        onClick={() => setDeleteConfirm(false)}
-                        variant="outline"
-                        className="ml-2"
-                      >
-                        Cancel
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <TabsContent value="open-trades" className="space-y-6">
+          {/* Open Trades */}
+          <OpenTradesPanel />
         </TabsContent>
 
         <TabsContent value="promotional-content" className="space-y-6">
@@ -1327,55 +1102,9 @@ export default function VipSyncPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="sync-history" className="space-y-6">
-          {/* Sync History */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Sync History
-              </CardTitle>
-              <CardDescription>
-                Recent synchronization activities and logs
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {syncLogs.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    No sync logs available
-                  </div>
-                ) : (
-                  syncLogs.map((log) => (
-                    <div key={log.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        {getStatusIcon(log.status)}
-                        <div>
-                          <div className="font-medium">
-                            {formatTimeAgo(log.syncedAt)}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            Imported: {log.tradesImported} | Updated: {log.tradesUpdated}
-                            {log.errors.length > 0 && ` | Errors: ${log.errors.length}`}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge className={getStatusColor(log.status)}>
-                          {log.status}
-                        </Badge>
-                        {log.errors.length > 0 && (
-                          <Button variant="outline" size="sm">
-                            View Errors
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
+        <TabsContent value="mt5-history" className="space-y-6">
+          {/* MT5 Trade History - Embedded directly in tab */}
+          <MT5TradeHistoryPanel />
         </TabsContent>
       </Tabs>
     </div>

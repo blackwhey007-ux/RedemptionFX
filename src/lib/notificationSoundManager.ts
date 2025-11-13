@@ -11,6 +11,11 @@ class NotificationSoundManager {
   }
 
   private async initializeAudioContext() {
+    // Only initialize in browser (not during server-side rendering)
+    if (typeof window === 'undefined') {
+      return
+    }
+    
     try {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
       
@@ -320,4 +325,12 @@ class NotificationSoundManager {
 
 // Export singleton instance
 export const notificationSoundManager = new NotificationSoundManager()
+
+
+
+
+
+
+
+
 

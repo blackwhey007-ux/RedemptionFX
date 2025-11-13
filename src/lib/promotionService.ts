@@ -14,30 +14,33 @@ import {
   onSnapshot
 } from 'firebase/firestore'
 import { db } from './firebaseConfig'
+import { cacheManager } from './cacheManager'
 import { Promotion, PromotionType } from '@/types/promotion'
 
 const PROMOTIONS_COLLECTION = 'promotions'
 
-// Get all active promotions for a specific target audience
+// Get all active promotions for a specific target audience (with caching)
 export const getActivePromotions = async (targetAudience: 'vip' | 'guest'): Promise<Promotion[]> => {
   try {
+    // Check cache first
+    const cacheKey = `activePromotions:${targetAudience}`
+    const cached = cacheManager.getTyped<Promotion[]>('promotions', cacheKey)
     
-    // Try to get all promotions first (to avoid security rule issues)
-    let querySnapshot
-    try {
-      // First try to get all promotions
-      const q = query(collection(db, PROMOTIONS_COLLECTION))
-      querySnapshot = await getDocs(q)
-    } catch (error) {
-      console.error('Error getting all promotions, trying active only:', error)
-      // Fallback: try to get only active promotions
-      const q = query(
-        collection(db, PROMOTIONS_COLLECTION),
-        where('isActive', '==', true)
-      )
-      querySnapshot = await getDocs(q)
+    if (cached) {
+      console.log('🎁 Using cached active promotions for', targetAudience)
+      return cached
     }
+
+    console.log('🎁 Fetching active promotions from Firestore for', targetAudience)
     
+    // Use Firestore query to filter active promotions instead of getting all
+    const q = query(
+      collection(db, PROMOTIONS_COLLECTION),
+      where('isActive', '==', true),
+      orderBy('displayOrder', 'asc')
+    )
+    
+    const querySnapshot = await getDocs(q)
     const allPromotions = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
@@ -45,26 +48,39 @@ export const getActivePromotions = async (targetAudience: 'vip' | 'guest'): Prom
       updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || new Date().toISOString()
     })) as Promotion[]
     
-    
-    // Filter by active status and target audience in memory
+    // Filter by target audience (can't do in Firestore query due to 'both' option)
     const filteredPromotions = allPromotions.filter(promo => 
-      promo.isActive === true && 
-      (promo.targetAudience === targetAudience || promo.targetAudience === 'both')
+      promo.targetAudience === targetAudience || promo.targetAudience === 'both'
     )
     
+    // Cache the results
+    cacheManager.setTyped('promotions', cacheKey, filteredPromotions)
     
-    // Sort by display order
-    return filteredPromotions.sort((a, b) => a.displayOrder - b.displayOrder)
+    return filteredPromotions
   } catch (error) {
     console.error('Error getting active promotions:', error)
     throw new Error('Failed to get active promotions')
   }
 }
 
-// Get all promotions (for admin management)
+// Get all promotions (for admin management) - with caching
 export const getAllPromotions = async (): Promise<Promotion[]> => {
   try {
-    const q = query(collection(db, PROMOTIONS_COLLECTION))
+    // Check cache first
+    const cacheKey = 'allPromotions'
+    const cached = cacheManager.getTyped<Promotion[]>('promotions', cacheKey)
+    
+    if (cached) {
+      console.log('🎁 Using cached all promotions')
+      return cached
+    }
+
+    console.log('🎁 Fetching all promotions from Firestore')
+    
+    const q = query(
+      collection(db, PROMOTIONS_COLLECTION),
+      orderBy('displayOrder', 'asc')
+    )
     
     const querySnapshot = await getDocs(q)
     const promotions = querySnapshot.docs.map(doc => ({
@@ -74,8 +90,10 @@ export const getAllPromotions = async (): Promise<Promotion[]> => {
       updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || new Date().toISOString()
     })) as Promotion[]
     
-    // Sort by display order in memory
-    return promotions.sort((a, b) => a.displayOrder - b.displayOrder)
+    // Cache the results
+    cacheManager.setTyped('promotions', cacheKey, promotions)
+    
+    return promotions
   } catch (error) {
     console.error('Error getting all promotions:', error)
     throw new Error('Failed to get all promotions')
@@ -92,6 +110,10 @@ export const createPromotion = async (data: Omit<Promotion, 'id' | 'createdAt' |
     })
     
     console.log('Promotion created with ID:', docRef.id)
+    
+    // Invalidate promotion caches
+    cacheManager.invalidatePattern('Promotions')
+    
     return docRef.id
   } catch (error) {
     console.error('Error creating promotion:', error)
@@ -109,6 +131,9 @@ export const updatePromotion = async (id: string, data: Partial<Promotion>): Pro
     })
     
     console.log('Promotion updated:', id)
+    
+    // Invalidate promotion caches
+    cacheManager.invalidatePattern('Promotions')
   } catch (error) {
     console.error('Error updating promotion:', error)
     throw new Error('Failed to update promotion')
@@ -122,6 +147,9 @@ export const deletePromotion = async (id: string): Promise<void> => {
     await deleteDoc(promotionRef)
     
     console.log('Promotion deleted:', id)
+    
+    // Invalidate promotion caches
+    cacheManager.invalidatePattern('Promotions')
   } catch (error) {
     console.error('Error deleting promotion:', error)
     throw new Error('Failed to delete promotion')

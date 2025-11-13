@@ -33,6 +33,8 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts'
 import { cn } from '@/lib/utils'
 import { Signal } from '@/types/signal'
+import { MT5TradeHistory } from '@/lib/mt5TradeHistoryService'
+import { LiveTradingHistoryModal } from '@/components/copy-trading/LiveTradingHistoryModal'
 
 interface SignalStats {
   totalSignals: number
@@ -182,6 +184,79 @@ const SignalCard = ({ signal, index }: { signal: Signal; index: number }) => {
   )
 }
 
+// NEW: MT5 Trade Card (doesn't affect SignalCard)
+const MT5TradeCard = ({ trade, index }: { trade: MT5TradeHistory; index: number }) => {
+  const getStatusColor = (profit: number) => {
+    if (profit > 0) return 'bg-green-600 text-white'
+    if (profit < 0) return 'bg-red-600 text-white'
+    return 'bg-yellow-600 text-white'
+  }
+
+  const getStatusText = (profit: number) => {
+    if (profit > 0) return 'WIN'
+    if (profit < 0) return 'LOSS'
+    return 'BE'
+  }
+
+  return (
+    <div className="relative h-full">
+      <div className="absolute top-4 left-4 z-10">
+        <Badge variant="outline" className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm">
+          #{index + 1}
+        </Badge>
+      </div>
+      <div className="absolute top-4 right-4 z-10">
+        <Badge className={getStatusColor(trade.profit)}>
+          {getStatusText(trade.profit)}
+        </Badge>
+      </div>
+      <CardContent className="pt-16 pb-8">
+        <div className="space-y-6">
+          <div className="text-center">
+            <h3 className="text-3xl font-bold">{trade.symbol}</h3>
+            <Badge variant={trade.type === 'BUY' ? 'default' : 'secondary'} className="mt-2">
+              {trade.type}
+            </Badge>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground">Entry</p>
+              <p className="text-lg font-bold">{trade.openPrice.toFixed(5)}</p>
+            </div>
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground">Exit</p>
+              <p className="text-lg font-bold">{trade.closePrice.toFixed(5)}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">Profit</p>
+              <p className={`text-xl font-bold ${trade.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                ${trade.profit.toFixed(2)}
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">Pips</p>
+              <p className={`text-xl font-bold ${trade.pips >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {trade.pips.toFixed(1)}
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">R:R</p>
+              <p className="text-xl font-bold">
+                {trade.riskReward ? `${trade.riskReward.toFixed(1)}:1` : '-'}
+              </p>
+            </div>
+          </div>
+          <div className="text-center text-sm text-muted-foreground">
+            {new Date(trade.closeTime).toLocaleString()}
+          </div>
+        </div>
+      </CardContent>
+    </div>
+  )
+}
+
 interface DayData {
   date: string
   pips: number
@@ -212,11 +287,21 @@ export default function VipResultsPage() {
   // Slideshow state for Recent Winning Trades
   const [currentSlide, setCurrentSlide] = useState(0)
   const [isAutoPlaying, setIsAutoPlaying] = useState(true)
+  
+  // Trade history modal state
+  const [historyModalOpen, setHistoryModalOpen] = useState(false)
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [isPaused, setIsPaused] = useState(false)
   const slideshowRef = useRef<NodeJS.Timeout | null>(null)
   const [touchStart, setTouchStart] = useState<number | null>(null)
   const [touchEnd, setTouchEnd] = useState<number | null>(null)
   const [progress, setProgress] = useState(0)
+
+  // NEW: MT5 data source state (doesn't affect signal state)
+  const [dataSource, setDataSource] = useState<'signals' | 'mt5'>('signals')
+  const [mt5Stats, setMt5Stats] = useState<any>(null)
+  const [mt5Trades, setMt5Trades] = useState<MT5TradeHistory[]>([])
+  const [mt5Loading, setMt5Loading] = useState(false)
 
   // Calculation functions
   const calculateMonthlyReturn = (signals: Signal[]): number => {
@@ -311,6 +396,20 @@ export default function VipResultsPage() {
     }
   }
 
+  // NEW: Get top winning MT5 trades (doesn't modify getTopWinningSignals)
+  const getTopWinningTrades = (trades: MT5TradeHistory[], limit: number = 10): MT5TradeHistory[] => {
+    try {
+      if (!trades || trades.length === 0) return []
+      return trades
+        .filter(t => t && t.profit > 0)
+        .sort((a, b) => b.profit - a.profit)
+        .slice(0, limit)
+    } catch (error) {
+      console.error('Error getting top winning trades:', error)
+      return []
+    }
+  }
+
   const calculateThisWeekPips = (signals: Signal[]): number => {
     try {
       if (!signals || signals.length === 0) return 0
@@ -375,6 +474,19 @@ export default function VipResultsPage() {
     setCurrentSlide(slideIndex)
   }
 
+  // NEW: Dynamic slide navigation (works for both signals and MT5)
+  const nextSlideAuto = () => {
+    const items = dataSource === 'mt5' ? topWinningTrades : topWinningSignals
+    const maxSlides = Math.ceil(items.length / 3)
+    setCurrentSlide((prev) => (prev + 1) % (maxSlides || 1))
+  }
+
+  const prevSlideAuto = () => {
+    const items = dataSource === 'mt5' ? topWinningTrades : topWinningSignals
+    const maxSlides = Math.ceil(items.length / 3)
+    setCurrentSlide((prev) => (prev - 1 + maxSlides) % (maxSlides || 1))
+  }
+
   const toggleAutoPlay = () => {
     setIsAutoPlaying(!isAutoPlaying)
     setIsPaused(false)
@@ -410,9 +522,9 @@ export default function VipResultsPage() {
     const isRightSwipe = distance < -50
 
     if (isLeftSwipe) {
-      nextSlide()
+      nextSlideAuto()
     } else if (isRightSwipe) {
-      prevSlide()
+      prevSlideAuto()
     }
   }
 
@@ -548,15 +660,29 @@ export default function VipResultsPage() {
   }
 
   // DayCard component with enhanced hover effects and responsiveness
-  const DayCard = ({ day }: { day: CalendarDay }) => {
+  const DayCard = ({ day, onClick }: { day: CalendarDay; onClick?: (day: CalendarDay) => void }) => {
     const hasData = day.hasData
     const isProfitable = day.pips > 0
+    
+    const handleClick = (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      console.log('DayCard clicked:', { hasData, onClick: !!onClick, day })
+      if (hasData && onClick) {
+        console.log('Calling onClick with day:', day)
+        onClick(day)
+      } else {
+        console.log('Not calling onClick - hasData:', hasData, 'onClick exists:', !!onClick)
+      }
+    }
     
     return (
       <div 
         className={cn(
           "group relative p-2 sm:p-3 rounded-lg border min-h-[60px] sm:min-h-[80px] flex flex-col justify-between",
-          "transition-all duration-300 ease-in-out cursor-pointer",
+          "transition-all duration-300 ease-in-out",
+          hasData && onClick && "cursor-pointer",
+          !hasData && "cursor-default",
           "hover:scale-105 hover:shadow-lg hover:shadow-black/10 dark:hover:shadow-white/10",
           "hover:z-10 transform-gpu",
           day.isToday && "border-blue-500 border-2 ring-2 ring-blue-200 dark:ring-blue-800",
@@ -565,6 +691,7 @@ export default function VipResultsPage() {
           hasData && !isProfitable && "bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30"
         )}
         title={hasData ? `${day.date}: ${day.pips > 0 ? '+' : ''}${Math.round(day.pips || 0)} pips, ${day.signals} signal${day.signals !== 1 ? 's' : ''}` : `${day.date}: No signals`}
+        onClick={handleClick}
       >
         {/* Date */}
         <div className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">
@@ -685,6 +812,34 @@ export default function VipResultsPage() {
     }
   }
 
+  // NEW: Fetch MT5 data (separate from signal functions)
+  const fetchMT5Stats = async () => {
+    try {
+      const response = await fetch(`/api/vip-results?month=${selectedMonth}&year=${selectedYear}`)
+      const data = await response.json()
+      
+      if (data.success) {
+        setMt5Stats(data.stats)
+        setMt5Trades(data.trades || [])
+      } else {
+        console.error('Failed to fetch MT5 stats:', data.error)
+        setMt5Stats(null)
+        setMt5Trades([])
+      }
+    } catch (error) {
+      console.error('Error fetching MT5 stats:', error)
+      setMt5Stats(null)
+      setMt5Trades([])
+    }
+  }
+
+  // NEW: Refresh MT5 data
+  const refreshMT5Data = async () => {
+    setMt5Loading(true)
+    await fetchMT5Stats()
+    setMt5Loading(false)
+  }
+
   const refreshData = async () => {
     setRefreshing(true)
     await Promise.all([fetchStats(), fetchSignals()])
@@ -701,10 +856,17 @@ export default function VipResultsPage() {
 
     loadData()
 
-    // Auto-refresh every 5 minutes
-    const interval = setInterval(loadData, 5 * 60 * 1000)
+    // Auto-refresh every 15 minutes (increased from 5 to reduce Firestore reads)
+    const interval = setInterval(loadData, 15 * 60 * 1000)
     return () => clearInterval(interval)
   }, [])
+
+  // NEW: Load MT5 data when data source changes
+  useEffect(() => {
+    if (dataSource === 'mt5') {
+      fetchMT5Stats()
+    }
+  }, [dataSource, selectedMonth, selectedYear])
 
   // Auto-play slideshow effect with continuous progression
   useEffect(() => {
@@ -713,7 +875,7 @@ export default function VipResultsPage() {
       const progressInterval = setInterval(() => {
         setProgress(prev => {
           if (prev >= 100) {
-            nextSlide()
+            nextSlideAuto()
             return 0
           }
           return prev + 0.8 // Faster progression for more dynamic feel
@@ -740,9 +902,9 @@ export default function VipResultsPage() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'ArrowLeft') {
-        prevSlide()
+        prevSlideAuto()
       } else if (event.key === 'ArrowRight') {
-        nextSlide()
+        nextSlideAuto()
       } else if (event.key === ' ') {
         event.preventDefault()
         toggleAutoPlay()
@@ -818,6 +980,54 @@ export default function VipResultsPage() {
   const thisWeekPips = signals.length > 0 ? calculateThisWeekPips(signals) : 0
   const topWinningSignals = signals.length > 0 ? getTopWinningSignals(signals, 10) : []
   const calendarDays = generateCalendarDays(selectedMonth, selectedYear, signals)
+  
+  // Extract accountId from signals/trades for modal (for VIP Results, we'll use 'all' if no accountId)
+  const getAccountIdFromTrades = (): string => {
+    // For VIP Results with signals, we don't have accountId, so return empty string
+    // The modal will handle this by using accountType=all
+    return ''
+  }
+  
+  // Handle day click to open trade history modal
+  const handleDayClick = (day: CalendarDay, dayIndex: number) => {
+    console.log('handleDayClick called:', { day, dayIndex, hasData: day.hasData, selectedMonth, selectedYear })
+    
+    if (!day.hasData) {
+      console.log('Day has no data, returning')
+      return
+    }
+    
+    // Convert day index to full Date object
+    const firstDay = new Date(selectedYear, selectedMonth, 1)
+    const startDate = new Date(firstDay)
+    startDate.setDate(startDate.getDate() - firstDay.getDay())
+    
+    // Calculate the actual date for this day in the calendar grid
+    const actualDate = new Date(startDate)
+    actualDate.setDate(startDate.getDate() + dayIndex)
+    actualDate.setHours(0, 0, 0, 0)
+    
+    console.log('Calculated date:', {
+      actualDate: actualDate.toISOString(),
+      calculatedMonth: actualDate.getMonth(),
+      selectedMonth,
+      calculatedYear: actualDate.getFullYear(),
+      selectedYear
+    })
+    
+    // Only open modal if the date is in the selected month
+    if (actualDate.getMonth() === selectedMonth && actualDate.getFullYear() === selectedYear) {
+      console.log('Opening modal with date:', actualDate.toISOString())
+      setSelectedDate(actualDate)
+      setHistoryModalOpen(true)
+      console.log('Modal state set - historyModalOpen:', true, 'selectedDate:', actualDate)
+    } else {
+      console.log('Date not in selected month - not opening modal')
+    }
+  }
+  
+  // NEW: Calculate MT5 derived metrics (doesn't affect signal metrics)
+  const topWinningTrades = mt5Trades.length > 0 ? getTopWinningTrades(mt5Trades, 10) : []
   
   // Calendar navigation
   const months = [
@@ -926,12 +1136,29 @@ export default function VipResultsPage() {
 
       {/* Refresh Controls */}
       <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-sm">
-            <Activity className="w-3 h-3 mr-1" />
-            VIP Signals
-          </Badge>
-          {refreshing && (
+        <div className="flex items-center gap-4">
+          {/* NEW: Data source toggle */}
+          <Select value={dataSource} onValueChange={(v) => setDataSource(v as 'signals' | 'mt5')}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select Data Source" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="signals">
+                <div className="flex items-center gap-2">
+                  <Target className="h-4 w-4" />
+                  <span>Signals</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="mt5">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4" />
+                  <span>Live Trading</span>
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          
+          {(dataSource === 'mt5' ? mt5Loading : refreshing) && (
             <Badge variant="secondary" className="text-sm">
               <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
               Refreshing...
@@ -939,13 +1166,13 @@ export default function VipResultsPage() {
           )}
         </div>
         <Button
-          onClick={handleRefresh}
-          disabled={refreshing}
+          onClick={dataSource === 'mt5' ? refreshMT5Data : handleRefresh}
+          disabled={dataSource === 'mt5' ? mt5Loading : refreshing}
           variant="outline"
           size="sm"
           className="flex items-center gap-2"
         >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 ${(dataSource === 'mt5' ? mt5Loading : refreshing) ? 'animate-spin' : ''}`} />
           Refresh Data
         </Button>
       </div>
@@ -955,7 +1182,7 @@ export default function VipResultsPage() {
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-red-500" />
-            Recent Winning Signals
+            {dataSource === 'mt5' ? 'Recent Winning Trades' : 'Recent Winning Signals'}
           </CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant="destructive" className="animate-pulse">LIVE</Badge>
@@ -977,7 +1204,7 @@ export default function VipResultsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={prevSlide}
+                onClick={prevSlideAuto}
                 className="h-8 w-8 p-0"
                 title="Previous slide"
               >
@@ -986,14 +1213,14 @@ export default function VipResultsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={nextSlide}
+                onClick={nextSlideAuto}
                 className="h-8 w-8 p-0"
                 title="Next slide"
               >
                 <ChevronRight className="w-4 h-4" />
               </Button>
               <div className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                {currentSlide + 1} / {Math.ceil(topWinningSignals.length / 3)}
+                {currentSlide + 1} / {Math.ceil((dataSource === 'mt5' ? topWinningTrades : topWinningSignals).length / 3)}
               </div>
             </div>
           </div>
@@ -1025,15 +1252,27 @@ export default function VipResultsPage() {
                   transform: `translateX(-${currentSlide * 100}%)`
                 }}
               >
-                {Array.from({ length: Math.ceil(topWinningSignals.length / 1) }).map((_, slideIndex) => (
-                  <div key={slideIndex} className="w-full flex-shrink-0">
-                    <div className="grid grid-cols-1 gap-4">
-                      {topWinningSignals.slice(slideIndex * 1, (slideIndex + 1) * 1).map((signal, index) => (
-                        <SignalCard key={signal.id} signal={signal} index={slideIndex * 1 + index} />
-                      ))}
+                {dataSource === 'mt5' ? (
+                  Array.from({ length: Math.ceil(topWinningTrades.length / 1) }).map((_, slideIndex) => (
+                    <div key={slideIndex} className="w-full flex-shrink-0">
+                      <div className="grid grid-cols-1 gap-4">
+                        {topWinningTrades.slice(slideIndex * 1, (slideIndex + 1) * 1).map((trade, index) => (
+                          <MT5TradeCard key={trade.id} trade={trade} index={slideIndex * 1 + index} />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  Array.from({ length: Math.ceil(topWinningSignals.length / 1) }).map((_, slideIndex) => (
+                    <div key={slideIndex} className="w-full flex-shrink-0">
+                      <div className="grid grid-cols-1 gap-4">
+                        {topWinningSignals.slice(slideIndex * 1, (slideIndex + 1) * 1).map((signal, index) => (
+                          <SignalCard key={signal.id} signal={signal} index={slideIndex * 1 + index} />
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
             
@@ -1045,15 +1284,27 @@ export default function VipResultsPage() {
                   transform: `translateX(-${currentSlide * 100}%)`
                 }}
               >
-                {Array.from({ length: Math.ceil(topWinningSignals.length / 2) }).map((_, slideIndex) => (
-                  <div key={slideIndex} className="w-full flex-shrink-0">
-                    <div className="grid grid-cols-2 gap-4">
-                      {topWinningSignals.slice(slideIndex * 2, (slideIndex + 1) * 2).map((signal, index) => (
-                        <SignalCard key={signal.id} signal={signal} index={slideIndex * 2 + index} />
-                      ))}
+                {dataSource === 'mt5' ? (
+                  Array.from({ length: Math.ceil(topWinningTrades.length / 2) }).map((_, slideIndex) => (
+                    <div key={slideIndex} className="w-full flex-shrink-0">
+                      <div className="grid grid-cols-2 gap-4">
+                        {topWinningTrades.slice(slideIndex * 2, (slideIndex + 1) * 2).map((trade, index) => (
+                          <MT5TradeCard key={trade.id} trade={trade} index={slideIndex * 2 + index} />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  Array.from({ length: Math.ceil(topWinningSignals.length / 2) }).map((_, slideIndex) => (
+                    <div key={slideIndex} className="w-full flex-shrink-0">
+                      <div className="grid grid-cols-2 gap-4">
+                        {topWinningSignals.slice(slideIndex * 2, (slideIndex + 1) * 2).map((signal, index) => (
+                          <SignalCard key={signal.id} signal={signal} index={slideIndex * 2 + index} />
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
             
@@ -1065,15 +1316,27 @@ export default function VipResultsPage() {
                   transform: `translateX(-${currentSlide * 100}%)`
                 }}
               >
-                {Array.from({ length: Math.ceil(topWinningSignals.length / 3) }).map((_, slideIndex) => (
-                  <div key={slideIndex} className="w-full flex-shrink-0">
-                    <div className="grid grid-cols-3 gap-4">
-                      {topWinningSignals.slice(slideIndex * 3, (slideIndex + 1) * 3).map((signal, index) => (
-                        <SignalCard key={signal.id} signal={signal} index={slideIndex * 3 + index} />
-                      ))}
+                {dataSource === 'mt5' ? (
+                  Array.from({ length: Math.ceil(topWinningTrades.length / 3) }).map((_, slideIndex) => (
+                    <div key={slideIndex} className="w-full flex-shrink-0">
+                      <div className="grid grid-cols-3 gap-4">
+                        {topWinningTrades.slice(slideIndex * 3, (slideIndex + 1) * 3).map((trade, index) => (
+                          <MT5TradeCard key={trade.id} trade={trade} index={slideIndex * 3 + index} />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  Array.from({ length: Math.ceil(topWinningSignals.length / 3) }).map((_, slideIndex) => (
+                    <div key={slideIndex} className="w-full flex-shrink-0">
+                      <div className="grid grid-cols-3 gap-4">
+                        {topWinningSignals.slice(slideIndex * 3, (slideIndex + 1) * 3).map((signal, index) => (
+                          <SignalCard key={signal.id} signal={signal} index={slideIndex * 3 + index} />
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -1082,7 +1345,7 @@ export default function VipResultsPage() {
           <div className="flex justify-center mt-6 space-x-2">
             {/* Mobile indicators (1 item per slide) */}
             <div className="md:hidden">
-              {Array.from({ length: Math.ceil(topWinningSignals.length / 1) }).map((_, index) => (
+              {Array.from({ length: Math.ceil((dataSource === 'mt5' ? topWinningTrades : topWinningSignals).length / 1) }).map((_, index) => (
                 <button
                   key={index}
                   onClick={() => goToSlide(index)}
@@ -1098,7 +1361,7 @@ export default function VipResultsPage() {
             
             {/* Tablet indicators (2 items per slide) */}
             <div className="hidden md:block lg:hidden">
-              {Array.from({ length: Math.ceil(topWinningSignals.length / 2) }).map((_, index) => (
+              {Array.from({ length: Math.ceil((dataSource === 'mt5' ? topWinningTrades : topWinningSignals).length / 2) }).map((_, index) => (
                 <button
                   key={index}
                   onClick={() => goToSlide(index)}
@@ -1114,7 +1377,7 @@ export default function VipResultsPage() {
             
             {/* Desktop indicators (3 items per slide) */}
             <div className="hidden lg:block">
-              {Array.from({ length: Math.ceil(topWinningSignals.length / 3) }).map((_, index) => (
+              {Array.from({ length: Math.ceil((dataSource === 'mt5' ? topWinningTrades : topWinningSignals).length / 3) }).map((_, index) => (
                 <button
                   key={index}
                   onClick={() => goToSlide(index)}
@@ -1134,27 +1397,36 @@ export default function VipResultsPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
               <div>
                 <div className="text-2xl font-bold text-white">
-                  {topWinningSignals.length}
+                  {dataSource === 'mt5' ? topWinningTrades.length : topWinningSignals.length}
                 </div>
-                <div className="text-xs text-gray-300">Winning Signals</div>
+                <div className="text-xs text-gray-300">{dataSource === 'mt5' ? 'Winning Trades' : 'Winning Signals'}</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-green-400">
-                  {topWinningSignals.reduce((sum, signal) => sum + (signal.result || 0), 0)}
+                  {dataSource === 'mt5' 
+                    ? topWinningTrades.reduce((sum, trade) => sum + trade.pips, 0).toFixed(1)
+                    : topWinningSignals.reduce((sum, signal) => sum + (signal.result || 0), 0)
+                  }
                 </div>
                 <div className="text-xs text-gray-300">Total Pips</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-white">
-                  {stats?.winningSignals || 0}W / {stats?.losingSignals || 0}L
+                  {dataSource === 'mt5'
+                    ? `${mt5Stats?.winningTrades || 0}W / ${mt5Stats?.losingTrades || 0}L`
+                    : `${stats?.winningSignals || 0}W / ${stats?.losingSignals || 0}L`
+                  }
                 </div>
-                <div className="text-xs text-gray-300">Win / Loss Signals</div>
+                <div className="text-xs text-gray-300">{dataSource === 'mt5' ? 'Win / Loss Trades' : 'Win / Loss Signals'}</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-green-400">
-                  {topWinningSignals[0]?.result || 0}
+                  {dataSource === 'mt5'
+                    ? `$${topWinningTrades[0]?.profit.toFixed(2) || 0}`
+                    : `${topWinningSignals[0]?.result || 0}`
+                  }
                 </div>
-                <div className="text-xs text-gray-300">Best Signal (Pips)</div>
+                <div className="text-xs text-gray-300">{dataSource === 'mt5' ? 'Best Trade (Profit)' : 'Best Signal (Pips)'}</div>
               </div>
             </div>
           </div>
@@ -1165,15 +1437,18 @@ export default function VipResultsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Return</CardTitle>
+            <CardTitle className="text-sm font-medium">{dataSource === 'mt5' ? 'Total Profit' : 'Monthly Return'}</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              +{monthlyReturn.toFixed(1)} pips
+              {dataSource === 'mt5' 
+                ? `$${mt5Stats?.totalProfit.toFixed(2) || '0.00'}`
+                : `+${monthlyReturn.toFixed(1)} pips`
+              }
             </div>
             <p className="text-xs text-muted-foreground">
-              Average monthly gains
+              {dataSource === 'mt5' ? 'Real dollars earned' : 'Average monthly gains'}
             </p>
           </CardContent>
         </Card>
@@ -1185,26 +1460,39 @@ export default function VipResultsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {winStreak.count}
+              {dataSource === 'mt5' ? (mt5Stats?.currentWinStreak || 0) : winStreak.count}
             </div>
             <p className="text-xs text-muted-foreground">
-              Current {winStreak.type} streak
+              Current {dataSource === 'mt5' ? 'trades' : winStreak.type} streak
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Week's Pips</CardTitle>
+            <CardTitle className="text-sm font-medium">{dataSource === 'mt5' ? 'Avg R:R' : "This Week's Pips"}</CardTitle>
             <Zap className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${thisWeekPips > 0 ? 'text-green-600' : thisWeekPips < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
-              {thisWeekPips > 0 ? '+' : ''}{thisWeekPips}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Last 7 days
-            </p>
+            {dataSource === 'mt5' ? (
+              <>
+                <div className={`text-2xl font-bold ${(mt5Stats?.averageRR || 0) >= 1 ? 'text-green-600' : 'text-orange-600'}`}>
+                  {mt5Stats?.averageRR.toFixed(1) || '0.0'}:1
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Average risk/reward
+                </p>
+              </>
+            ) : (
+              <>
+                <div className={`text-2xl font-bold ${thisWeekPips > 0 ? 'text-green-600' : thisWeekPips < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                  {thisWeekPips > 0 ? '+' : ''}{thisWeekPips}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Last 7 days
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -1215,10 +1503,13 @@ export default function VipResultsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats ? formatPercentage(stats.winRate) : '0%'}
+              {dataSource === 'mt5' 
+                ? `${mt5Stats?.winRate.toFixed(1) || '0'}%`
+                : (stats ? formatPercentage(stats.winRate) : '0%')
+              }
             </div>
             <p className="text-xs text-muted-foreground">
-              of signals profitable
+              of {dataSource === 'mt5' ? 'trades' : 'signals'} profitable
             </p>
           </CardContent>
         </Card>
@@ -1290,7 +1581,7 @@ export default function VipResultsPage() {
             ))}
             {/* Calendar Days */}
             {calendarDays.map((day, index) => (
-              <DayCard key={index} day={day} />
+              <DayCard key={index} day={day} onClick={(d) => handleDayClick(d, index)} />
             ))}
           </div>
           
@@ -1580,6 +1871,29 @@ export default function VipResultsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Live Trading History Modal */}
+      {selectedDate ? (
+        <LiveTradingHistoryModal
+          open={historyModalOpen}
+          onOpenChange={(open) => {
+            console.log('Modal onOpenChange:', open, 'selectedDate:', selectedDate)
+            setHistoryModalOpen(open)
+            if (!open) {
+              setSelectedDate(null)
+            }
+          }}
+          date={selectedDate}
+          masterAccountId={getAccountIdFromTrades()}
+        />
+      ) : null}
+      {/* Debug overlay - remove in production */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed bottom-4 right-4 bg-black/80 text-white p-3 text-xs rounded z-[9999] max-w-xs">
+          <div>Modal State: {historyModalOpen ? 'OPEN' : 'CLOSED'}</div>
+          <div>Selected Date: {selectedDate ? selectedDate.toISOString().split('T')[0] : 'null'}</div>
+        </div>
+      )}
     </div>
   )
 }

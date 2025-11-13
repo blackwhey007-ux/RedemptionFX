@@ -1,10 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardDecorativeOrb } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { StatsCard } from '@/components/ui/stats-card'
+import { StatusIndicator } from '@/components/ui/status-indicator'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -356,34 +359,60 @@ export default function AdminMembersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Member Management */}
-      <Card className="bg-gradient-to-br from-white to-red-50/30 dark:from-black dark:to-red-900/10 border-red-500/30 dark:border-red-500/50 shadow-xl shadow-red-500/20">
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Users className="w-6 h-6 text-red-500" />
-                Member Management
-              </CardTitle>
-              <CardDescription className="text-slate-600 dark:text-slate-400 mt-2">
-                Manage your VIP clients and track payments
-              </CardDescription>
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={exportToCSV} variant="outline" className="border-red-200 dark:border-red-800/50 text-slate-700 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-900/20">
-                <Download className="w-4 h-4 mr-2" />
-                Export CSV
-              </Button>
-              {/* Clear Approved button removed - using unified notification system */}
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+    <div className="max-w-7xl mx-auto space-y-6 w-full box-border">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <Users className="h-6 w-6 text-purple-500" />
+            Member Management
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            Manage your VIP clients and track payments
+          </p>
+        </div>
+        <Button onClick={exportToCSV} variant="premiumOutline">
+          <Download className="w-4 h-4 mr-2" />
+          Export CSV
+        </Button>
+      </div>
+
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatsCard
+          title="Total Members"
+          value={stats.total}
+          trend={`${stats.new} new this week`}
+          icon={Users}
+          decorativeColor="blue"
+        />
+        <StatsCard
+          title="VIP Members"
+          value={stats.vip}
+          trend={`${stats.admin} admins`}
+          icon={Crown}
+          decorativeColor="gold"
+        />
+        <StatsCard
+          title="Active Members"
+          value={stats.active}
+          trend={`${stats.inactive} inactive`}
+          icon={Activity}
+          decorativeColor="green"
+        />
+        <StatsCard
+          title="Revenue (Month)"
+          value={`$${calculateRevenue().toFixed(2)}`}
+          trend={revenueFilter === 'month' ? 'This month' : 'Selected period'}
+          icon={DollarSign}
+          decorativeColor="phoenix"
+        />
+      </div>
 
       {/* Revenue Date Filter */}
-      <Card className="glass-card border-red-500/40 dark:border-red-500/60 shadow-xl shadow-red-500/20">
-        <CardContent className="p-4">
+      <Card variant="glass">
+        <CardDecorativeOrb color="green" />
+        <CardContent className="relative z-10 p-4">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg">
@@ -857,11 +886,12 @@ export default function AdminMembersPage() {
       </Card>
 
       {/* Members Table */}
-      <Card className="bg-white/80 dark:bg-black/90 backdrop-blur-sm border-red-500/30 dark:border-red-500/50 shadow-xl shadow-red-500/20">
-        <CardHeader>
+      <Card variant="glass">
+        <CardDecorativeOrb color="blue" />
+        <CardHeader className="relative z-10">
           <CardTitle className="text-slate-900 dark:text-white">All Members ({filteredMembers.length})</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="relative z-10">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>

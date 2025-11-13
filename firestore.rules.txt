@@ -240,6 +240,29 @@ service cloud.firestore {
       allow delete: if request.auth != null && isAdmin();
     }
     
+    // Streaming logs collection - admin can read, system can write
+    match /streaming-logs/{logId} {
+      // Admin can read all streaming logs
+      allow read: if request.auth != null && isAdmin();
+      
+      // Allow creates and updates (for server-side logging from API routes)
+      // Note: This allows writes without auth for server-side operations
+      // In production, consider using Firebase Admin SDK for better security
+      allow create, update: if true;
+      
+      // Admin can delete logs (for cleanup)
+      allow delete: if request.auth != null && isAdmin();
+    }
+    
+    // MetaAPI streaming status - admin can read, system can write
+    match /metaapi_streaming_status/{statusId} {
+      // Admin can read streaming status
+      allow read: if request.auth != null && isAdmin();
+      
+      // Allow writes (for server-side status updates from API routes)
+      allow write: if true;
+    }
+    
     // Default deny rule
     match /{document=**} {
       allow read, write: if false;

@@ -1,12 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardDecorativeOrb } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
+import { StatusIndicator } from '@/components/ui/status-indicator'
+import { StatsCard } from '@/components/ui/stats-card'
+import { getMT5Settings, saveMT5Settings } from '@/lib/mt5SettingsService'
 import { 
   Settings, 
   TestTube, 
@@ -15,13 +18,19 @@ import {
   AlertCircle,
   RefreshCw,
   Clock,
-  Activity
+  Activity,
+  FileText,
+  ExternalLink,
+  Send,
+  Server
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 interface ApiConfig {
   enabled: boolean
   accountId: string
   token: string
+  regionUrl?: string
   lastSync?: string
   status?: 'connected' | 'disconnected' | 'error'
 }
@@ -36,6 +45,7 @@ interface SyncLog {
 }
 
 export function ApiSetupPanel() {
+  const router = useRouter()
   const [config, setConfig] = useState<ApiConfig>({
     enabled: false,
     accountId: '',
@@ -54,16 +64,34 @@ export function ApiSetupPanel() {
 
   const loadConfig = async () => {
     try {
-      // In a real implementation, this would load from Firebase
-      // For now, we'll use a placeholder
+      const savedSettings = await getMT5Settings()
+      
+      if (savedSettings) {
+        setConfig({
+          enabled: savedSettings.enabled || false,
+          accountId: savedSettings.accountId || '',
+          token: savedSettings.token || '',
+          regionUrl: savedSettings.regionUrl || '', // London will be auto-set on save
+          status: savedSettings.status || 'disconnected',
+          lastSync: savedSettings.lastSync?.toISOString()
+        })
+      } else {
+        // No saved settings, use defaults
+        setConfig({
+          enabled: false,
+          accountId: '',
+          token: '',
+          status: 'disconnected'
+        })
+      }
+    } catch (error) {
+      console.error('Error loading config:', error)
       setConfig({
         enabled: false,
         accountId: '',
         token: '',
         status: 'disconnected'
       })
-    } catch (error) {
-      console.error('Error loading config:', error)
     } finally {
       setLoading(false)
     }
@@ -87,12 +115,21 @@ export function ApiSetupPanel() {
     }
 
     try {
-      // In a real implementation, this would save to Firebase
-      console.log('Saving API config:', config)
-      alert('Configuration saved! (Demo mode)')
+      // London region URL will be auto-set by saveMT5Settings if not provided
+      await saveMT5Settings({
+        enabled: config.enabled,
+        accountId: config.accountId,
+        token: config.token,
+        regionUrl: config.regionUrl || undefined, // Let service auto-set London
+        status: config.status || 'disconnected',
+        lastSync: config.lastSync ? new Date(config.lastSync) : undefined
+      })
+      
+      alert('Configuration saved successfully!')
+      console.log('MT5 settings saved to Firestore')
     } catch (error) {
       console.error('Error saving config:', error)
-      alert('Failed to save configuration')
+      alert('Failed to save configuration: ' + (error instanceof Error ? error.message : 'Unknown error'))
     }
   }
 
@@ -104,37 +141,175 @@ export function ApiSetupPanel() {
 
     setTesting(true)
     try {
-      // Simulate API test
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      // Save the config first so the API can read it
+      await saveMT5Settings({
+        enabled: config.enabled,
+        accountId: config.accountId,
+        token: config.token,
+        regionUrl: config.regionUrl,
+        status: 'disconnected'
+      })
       
-      // In a real implementation, this would test the actual MetaAPI connection
-      setConfig(prev => ({ ...prev, status: 'connected' }))
-      alert('Connection test successful! (Demo mode)')
+      // Call the real diagnostic endpoint
+      const response = await fetch('/api/mt5-test-connection')
+      const data = await response.json()
+      
+      if (data.success && data.isHealthy) {
+        setConfig(prev => ({ ...prev, status: 'connected' }))
+        alert('✅ Connection test successful!\n\nAll systems operational.')
+      } else {
+        setConfig(prev => ({ ...prev, status: 'error' }))
+        
+        // Build detailed error message
+        let errorMsg = '❌ Connection test failed!\n\n'
+        if (data.diagnostics) {
+          const diag = data.diagnostics
+          errorMsg += `Token Valid: ${diag.managementApiWorks ? '✅' : '❌'}\n`
+          errorMsg += `Account Exists: ${diag.accountExists ? '✅' : '❌'}\n`
+          errorMsg += `Account Deployed: ${diag.accountDeployed ? '✅' : '❌'}\n`
+          errorMsg += `Account Connected: ${diag.accountConnected ? '✅' : '❌'}\n`
+          errorMsg += `Trading API: ${diag.tradingApiWorks ? '✅' : '❌'}\n`
+          
+          if (diag.regionUrl) {
+            errorMsg += `\nRegion URL: ${diag.regionUrl}`
+          }
+          
+          if (diag.errors && diag.errors.length > 0) {
+            errorMsg += `\n\nErrors:\n${diag.errors.slice(0, 3).join('\n')}`
+          }
+        } else {
+          errorMsg += data.error || 'Unknown error'
+        }
+        
+        alert(errorMsg)
+      }
     } catch (error) {
       setConfig(prev => ({ ...prev, status: 'error' }))
-      alert('Connection test failed')
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+      alert(`Connection test failed: ${errorMsg}`)
     } finally {
       setTesting(false)
     }
   }
 
+
   const handleManualSync = async () => {
+    if (!config.accountId || !config.token) {
+      alert('Please enter both Account ID and Token')
+      return
+    }
+
+    console.log('🔄 Starting manual signal sync...')
+    console.log('Account ID:', config.accountId)
+    console.log('Token:', config.token ? '***' + config.token.slice(-4) : 'Missing')
+    
     setSyncing(true)
     try {
-      // For now, simulate a sync since API endpoint doesn't exist yet
-      // In the future, this will call the actual API
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      console.log('📡 Calling /api/admin/mt5-signals-sync...')
+      const response = await fetch('/api/admin/mt5-signals-sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+
+      console.log('📥 Response status:', response.status, response.statusText)
+
+      if (!response.ok) {
+        let errorMessage = `Request failed with status ${response.status}`
+        try {
+          const errorData = await response.json()
+          console.error('❌ Error response data:', errorData)
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch (parseError) {
+          console.error('❌ Failed to parse error JSON:', parseError)
+          // If JSON parse fails, try to get text
+          try {
+            const text = await response.text()
+            console.error('❌ Error response text:', text)
+            errorMessage = text || errorMessage
+          } catch {
+            // Keep default error message
+          }
+        }
+        throw new Error(errorMessage)
+      }
+
+      const data = await response.json()
+      console.log('✅ Sync response received:', data)
       
-      // Simulate successful sync
-      alert('Sync completed! (Demo mode)\nImported: 0 trades\nUpdated: 0 trades')
+      if (data.success) {
+        // Show detailed success message
+        const totalSignals = (data.signalsCreated || 0) + (data.signalsUpdated || 0)
+        let successMessage = `Sync completed!\n\nSignals Created: ${data.signalsCreated || 0}\nSignals Updated: ${data.signalsUpdated || 0}\nSignals Closed: ${data.signalsClosed || 0}\nTotal Processed: ${totalSignals + (data.signalsClosed || 0)}`
+        
+        if (data.message) {
+          successMessage += `\n\n${data.message}`
+        }
+        
+        if (data.errors && data.errors.length > 0) {
+          successMessage += `\n\nWarnings: ${data.errors.join('\n')}`
+        }
+        
+        console.log('✅ Sync successful:', {
+          created: data.signalsCreated,
+          updated: data.signalsUpdated,
+          closed: data.signalsClosed,
+          errors: data.errors?.length || 0
+        })
+        
+        // Check if Telegram messages were sent
+        if (data.signalsCreated > 0) {
+          console.log('📱 Check your Telegram channel for new signal messages')
+        }
+        
+        alert(successMessage)
+        setConfig(prev => ({ ...prev, lastSync: new Date().toISOString(), status: 'connected' }))
+        // Refresh config to get updated settings
+        await loadConfig()
+      } else {
+        // Show detailed error message
+        let errorMsg = data.error || data.message || 'Unknown error'
+        
+        // Append errors array if present
+        if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
+          errorMsg += '\n\nDetails:\n' + data.errors.join('\n')
+        }
+        
+        console.error('❌ Sync failed:', errorMsg)
+        console.error('Full error data:', data)
+        
+        alert(`Sync failed:\n\n${errorMsg}`)
+        setConfig(prev => ({ ...prev, status: 'error' }))
+      }
       
       // Refresh sync logs
       await loadSyncLogs()
     } catch (error) {
-      console.error('Error triggering sync:', error)
-      alert('Error triggering sync')
+      console.error('❌ Error triggering sync:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      
+      // Show user-friendly error message with helpful troubleshooting
+      let userMessage = errorMessage
+      
+      if (errorMessage.includes('disabled')) {
+        userMessage = 'MT5 sync is disabled. Please enable "Enable API Sync" toggle and save, then try again.'
+      } else if (errorMessage.includes('window is not defined')) {
+        userMessage = 'Server error: Please restart the development server and try again.'
+      } else if (errorMessage.includes('404') || errorMessage.includes('Not found')) {
+        userMessage = `Account not found. Please verify:\n1. Account ID is correct: ${config.accountId}\n2. Account exists in MetaAPI dashboard\n3. Account is deployed in MetaAPI\n4. Token has access to this account\n\nOriginal error: ${errorMessage}`
+      } else if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+        userMessage = `Authentication failed. Please verify:\n1. Token is valid and not expired\n2. Token has required permissions\n3. Token matches the account ID\n\nOriginal error: ${errorMessage}`
+      } else if (errorMessage.includes('Failed to get positions')) {
+        userMessage = `Could not retrieve positions. Please check:\n1. Account is deployed in MetaAPI dashboard\n2. Account is connected\n3. You have open positions in MT5\n4. Token has trading-account-management-api permissions\n\nOriginal error: ${errorMessage}`
+      }
+      
+      console.error('❌ Final error message for user:', userMessage)
+      alert(`Error triggering sync: ${userMessage}`)
+      setConfig(prev => ({ ...prev, status: 'error' }))
     } finally {
       setSyncing(false)
+      console.log('✅ Sync process completed')
     }
   }
 
@@ -176,11 +351,51 @@ export function ApiSetupPanel() {
     )
   }
 
+  // Count signals from sync logs (approximate)
+  const totalSignalsToday = syncLogs.reduce((sum, log) => sum + log.tradesImported + log.tradesUpdated, 0)
+  
   return (
     <div className="space-y-6">
+      {/* Header Section */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <Settings className="h-6 w-6" />
+            MT5 API Configuration
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            Configure MetaAPI settings for automated trading signal sync
+          </p>
+        </div>
+        
+        <StatusIndicator 
+          status={config.status === 'connected' ? 'active' : 'inactive'} 
+          label={config.status === 'connected' ? 'Connected' : 'Not Connected'}
+        />
+      </div>
+
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <StatsCard
+          title="API Status"
+          value={config.status === 'connected' ? "Connected" : "Not Configured"}
+          trend={config.accountId ? `Account: ${config.accountId.substring(0, 8)}...` : 'No account configured'}
+          icon={Server}
+          decorativeColor={config.status === 'connected' ? "green" : "phoenix"}
+        />
+        <StatsCard
+          title="Signals Today"
+          value={totalSignalsToday}
+          trend="From manual sync"
+          icon={Activity}
+          decorativeColor="gold"
+        />
+      </div>
+
       {/* API Configuration */}
-      <Card>
-        <CardHeader>
+      <Card variant="glass">
+        <CardDecorativeOrb color="phoenix" />
+        <CardHeader className="relative z-10">
           <CardTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
             MetaAPI Configuration
@@ -189,7 +404,7 @@ export function ApiSetupPanel() {
             Configure automated sync with your MT5 account via MetaAPI
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="relative z-10 space-y-4">
           {/* Enable/Disable */}
           <div className="flex items-center justify-between">
             <div>
@@ -236,6 +451,16 @@ export function ApiSetupPanel() {
             </p>
           </div>
 
+          {/* Info about London default */}
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5" />
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                <strong>Region:</strong> Using London endpoint by default (<code className="text-xs">https://mt-client-api-v1.london.agiliumtrade.ai</code>). This matches your account configuration.
+              </p>
+            </div>
+          </div>
+
           {/* Connection Status */}
           <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
             <div className="flex items-center gap-2">
@@ -252,7 +477,7 @@ export function ApiSetupPanel() {
             <Button
               onClick={handleTestConnection}
               disabled={!config.accountId || !config.token || testing}
-              variant="outline"
+              variant="premiumOutline"
               className="flex items-center gap-2"
             >
               {testing ? (
@@ -266,6 +491,7 @@ export function ApiSetupPanel() {
             <Button
               onClick={handleSaveConfig}
               disabled={!config.accountId || !config.token}
+              variant="premium"
               className="flex items-center gap-2"
             >
               <Settings className="h-4 w-4" />
@@ -286,50 +512,111 @@ export function ApiSetupPanel() {
                 </p>
                 <ul className="list-disc list-inside mt-2 space-y-1 text-blue-600 dark:text-blue-300">
                   <li>Sign up for MetaAPI account</li>
-                  <li>Add your MT5 account to MetaAPI</li>
+                  <li>Add your MT5 account to MetaAPI (choose London region)</li>
                   <li>Get your Account ID and API Token</li>
-                  <li>Enter credentials above and test connection</li>
+                  <li>Enter credentials above and save configuration</li>
                 </ul>
+                <p className="text-blue-600 dark:text-blue-300 mt-2">
+                  <strong>Note:</strong> London region endpoint is used by default and will be automatically set when you save your configuration.
+                </p>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
+      {/* Real-Time Streaming - Redirects to Admin Dashboard */}
+      <Card variant="glass" className="border-blue-200 dark:border-blue-800">
+        <CardDecorativeOrb color="blue" />
+        <CardHeader className="relative z-10">
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5 text-blue-500" />
+            Real-Time Streaming
+          </CardTitle>
+          <CardDescription>
+            Manage streaming from the Admin Dashboard
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="relative z-10 space-y-4">
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div className="flex items-start gap-3">
+              <ExternalLink className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  Streaming Controls Moved to Admin Dashboard
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  To prevent conflicts and ensure professional operation, all streaming controls have been centralized in one location.
+                </p>
+                <div className="mt-3 space-y-1">
+                  <p className="text-xs text-blue-600 dark:text-blue-400">
+                    <strong>✅ Configure here:</strong> MT5 API settings (Account ID, Token, Region)
+                  </p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400">
+                    <strong>🚀 Start streaming:</strong> Admin Dashboard → Open Trades Panel
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <Button
+            variant="default"
+            onClick={() => router.push('/dashboard/admin')}
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700"
+          >
+            <Activity className="h-4 w-4" />
+            Go to Admin Dashboard (Streaming Controls)
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+
+          <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+            <div className="flex items-start gap-2">
+              <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+              <p className="text-xs text-green-700 dark:text-green-300">
+                <strong>Benefits:</strong> Single control point prevents duplicate connections, state conflicts, and connection issues. Professional reconnection handling with exponential backoff ensures 95%+ uptime.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Manual Sync */}
-      <Card>
-        <CardHeader>
+      <Card variant="glass">
+        <CardDecorativeOrb color="gold" />
+        <CardHeader className="relative z-10">
           <CardTitle className="flex items-center gap-2">
             <RefreshCw className="h-5 w-5" />
-            Manual Sync
+            Manual Sync (Fallback)
           </CardTitle>
           <CardDescription>
             Trigger immediate sync of trades from your MT5 account
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="relative z-10">
           <div className="flex items-center justify-between">
             <div>
-              <h4 className="font-medium">Sync Last 7 Days</h4>
+              <h4 className="font-medium">Sync Signals from Open Positions</h4>
               <p className="text-sm text-gray-500">
-                Import trades from the past week
+                Create signals from your current MT5 open positions and send to Telegram
               </p>
             </div>
             <Button 
               onClick={handleManualSync} 
-              disabled={syncing || !config.enabled}
+              disabled={syncing || !config.accountId || !config.token}
               className="flex items-center gap-2"
             >
               <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Syncing...' : 'Sync Now'}
+              {syncing ? 'Syncing Signals...' : 'Sync Signals Now'}
             </Button>
           </div>
         </CardContent>
       </Card>
 
       {/* Sync History */}
-      <Card>
-        <CardHeader>
+      <Card variant="glass">
+        <CardDecorativeOrb color="blue" />
+        <CardHeader className="relative z-10">
           <CardTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
             Sync History
@@ -338,7 +625,7 @@ export function ApiSetupPanel() {
             Recent automated and manual sync activities
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="relative z-10">
           <div className="space-y-4">
             {syncLogs.length === 0 ? (
               <div className="text-center py-8 text-gray-500">

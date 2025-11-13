@@ -10,7 +10,8 @@ import {
   where, 
   orderBy,
   serverTimestamp,
-  setDoc
+  setDoc,
+  deleteField
 } from 'firebase/firestore'
 import { db } from './firebaseConfig'
 import { TradingProfile, UserRole } from '@/types/profile'
