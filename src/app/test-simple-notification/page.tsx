@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUnifiedNotifications } from '@/contexts/UnifiedNotificationContext'
 import { UserNotificationService } from '@/lib/userNotificationService'
+import { UserNotificationService } from '@/lib/userNotificationService'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -28,16 +29,11 @@ export default function TestSimpleNotificationPage() {
       addResult('Creating test notification...')
       
       // Test direct notification creation
-      await addNotification({
-        userId: user.uid,
-        type: 'system',
-        title: 'Test Notification',
-        message: 'This is a test notification to verify the system works',
-        data: {
-          soundType: 'info',
-          actionUrl: '/dashboard'
-        }
-      })
+      await UserNotificationService.createSystemNotification(
+        user.uid,
+        'Test Notification',
+        'This is a test notification to verify the system works'
+      )
       
       addResult('✅ Notification created successfully!')
     } catch (error) {
