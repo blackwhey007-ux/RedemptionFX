@@ -19,7 +19,7 @@ export const createTrade = async (tradeData: Omit<Trade, 'id' | 'createdAt' | 'u
       ...sanitizedTradeData,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
-    }
+    } as Trade & { createdAt: Timestamp; updatedAt: Timestamp }
     
     console.log('Trade object to save:', trade)
     
