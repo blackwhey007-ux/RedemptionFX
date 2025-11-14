@@ -598,17 +598,18 @@ export function UnifiedNotificationProvider({ children }: UnifiedNotificationPro
         
         // Check for new notifications
         if (newNotifications.length > 0 && latestNotification) {
-          const notificationTime = getTimestampMillis(newNotifications[0].createdAt)
+          const latestNotif = newNotifications[0]
+          const notificationTime = getTimestampMillis(latestNotif.createdAt)
           
           if (notificationTime > lastNotificationTimeRef.current) {
             lastNotificationTimeRef.current = notificationTime
             
             // Play sound if preferences allow
             if (preferences.soundEnabled && !isDNDActive()) {
-              console.log('🔔 Playing notification sound for:', latestNotification.type)
+              console.log('🔔 Playing notification sound for:', latestNotif.type)
               notificationSoundManager.playNotificationSound(
                 preferences,
-                latestNotification.type,
+                latestNotif.type,
                 notificationTime
               )
             }
