@@ -18,9 +18,7 @@ function TestPromotionDebugInner() {
   // const { notifications, stats } = useUnifiedNotifications()
   // const unreadCount = stats?.unread || 0
   
-  // Fallback values for production build
-  const notifications: any[] = []
-  const unreadCount = 0
+  // Fallback values removed - using hardcoded values in JSX instead to avoid any hook references
   const [loading, setLoading] = useState(false)
   const [debugInfo, setDebugInfo] = useState<string[]>([])
 
@@ -149,8 +147,9 @@ function TestPromotionDebugInner() {
             <h3 className="text-lg font-semibold mb-2">Current User Info</h3>
             <p>User ID: {user?.uid || 'N/A'}</p>
             <p>User Role: {user?.role || 'N/A'}</p>
-            <p>Total Notifications: {notifications.length}</p>
-            <p>Unread Notifications: {unreadCount}</p>
+            {/* Notifications display disabled in production build */}
+            <p>Total Notifications: 0 (disabled in production)</p>
+            <p>Unread Notifications: 0 (disabled in production)</p>
           </div>
 
           <div className="space-y-4">
