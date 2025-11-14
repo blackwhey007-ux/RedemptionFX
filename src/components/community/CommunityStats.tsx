@@ -107,7 +107,7 @@ export function CommunityStats({ className = '' }: CommunityStatsProps) {
     { key: 'like', label: 'Likes', icon: Star, color: 'text-red-600' }
   ];
 
-  const totalActivities = Object.values(stats.activitiesByType).reduce((sum: number, count: any) => sum + (Number(count) || 0), 0);
+  const totalActivities: number = Object.values(stats.activitiesByType).reduce((sum: number, count: any) => sum + (Number(count) || 0), 0);
 
   return (
     <div className={`space-y-6 ${className}`}>
@@ -179,7 +179,7 @@ export function CommunityStats({ className = '' }: CommunityStatsProps) {
         <CardContent>
           <div className="space-y-4">
             {activityTypes.map((type) => {
-              const count = (stats.activitiesByType[type.key as keyof typeof stats.activitiesByType] as number) || 0;
+              const count = Number(stats.activitiesByType[type.key as keyof typeof stats.activitiesByType] || 0);
               const total = Number(totalActivities) || 0;
               const percentage = total > 0 ? (count / total) * 100 : 0;
               
@@ -253,14 +253,15 @@ export function CommunityStats({ className = '' }: CommunityStatsProps) {
               <div className="space-y-2">
                 {activityTypes
                   .sort((a, b) => {
-                    const countA = stats.activitiesByType[a.key as keyof typeof stats.activitiesByType] || 0;
-                    const countB = stats.activitiesByType[b.key as keyof typeof stats.activitiesByType] || 0;
+                    const countA = Number(stats.activitiesByType[a.key as keyof typeof stats.activitiesByType] || 0);
+                    const countB = Number(stats.activitiesByType[b.key as keyof typeof stats.activitiesByType] || 0);
                     return countB - countA;
                   })
                   .slice(0, 5)
                   .map((type) => {
-                    const count = stats.activitiesByType[type.key as keyof typeof stats.activitiesByType] || 0;
-                    const percentage = totalActivities > 0 ? (count / totalActivities) * 100 : 0;
+                    const count = Number(stats.activitiesByType[type.key as keyof typeof stats.activitiesByType] || 0);
+                    const total = Number(totalActivities) || 0;
+                    const percentage = total > 0 ? (count / total) * 100 : 0;
                     
                     return (
                       <div key={type.key} className="flex items-center justify-between">

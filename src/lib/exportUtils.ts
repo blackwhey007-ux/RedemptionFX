@@ -1,7 +1,11 @@
 /**
  * Export Utility Functions
  * Functions for exporting statistics data to CSV and PDF
+ * 
+ * Note: This file must be used in client components only ('use client')
  */
+
+'use client';
 
 interface FollowerStats {
   email: string
@@ -118,13 +122,29 @@ export async function exportToPDF(
   risk?: any,
   trading?: any
 ): Promise<void> {
+  // Only run on client side
+  if (typeof window === 'undefined') {
+    throw new Error('PDF export is only available on the client side')
+  }
+
   try {
     // Dynamic import to avoid errors if library not installed
+    // Use dynamic import with 'next/dynamic' style to prevent SSR bundling
     let jsPDF: any
     try {
-      const jspdfModule = await import('jspdf')
-      jsPDF = jspdfModule.jsPDF || (jspdfModule as any).default
+      // Dynamic import that won't be bundled for SSR
+      const jspdfModule = await import('jspdf' as any)
+      // Handle different export formats
+      jsPDF = (jspdfModule as any).jsPDF || 
+              (jspdfModule as any).default?.jsPDF || 
+              (jspdfModule as any).default ||
+              (jspdfModule as any)
+      
+      if (!jsPDF) {
+        throw new Error('jsPDF constructor not found in module')
+      }
     } catch (importError) {
+      console.error('jsPDF import error:', importError)
       throw new Error('jsPDF library not installed. Please install it: npm install jspdf')
     }
     const doc = new jsPDF()

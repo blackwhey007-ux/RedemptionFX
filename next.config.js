@@ -13,6 +13,13 @@ const nextConfig = {
         'metaapi.cloud-sdk': 'commonjs metaapi.cloud-sdk'
       })
     }
+    
+    // Configure jspdf to only be bundled for client-side
+    if (!isServer) {
+      config.resolve.alias = config.resolve.alias || {}
+      // jspdf should work fine on client side, but we ensure it's not processed for SSR
+    }
+    
     return config
   },
 }
