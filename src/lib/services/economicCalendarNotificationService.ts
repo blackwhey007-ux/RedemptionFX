@@ -57,7 +57,7 @@ class EconomicCalendarNotificationServiceImpl implements EconomicCalendarNotific
 
       await NotificationService.createNotification({
         userId,
-        type: 'economic-calendar',
+        type: 'event',
         title,
         message,
         data: {
