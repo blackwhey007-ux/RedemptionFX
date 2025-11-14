@@ -180,7 +180,8 @@ export function CommunityStats({ className = '' }: CommunityStatsProps) {
           <div className="space-y-4">
             {activityTypes.map((type) => {
               const count = (stats.activitiesByType[type.key as keyof typeof stats.activitiesByType] as number) || 0;
-              const percentage = totalActivities > 0 ? (count / totalActivities) * 100 : 0;
+              const total = Number(totalActivities) || 0;
+              const percentage = total > 0 ? (count / total) * 100 : 0;
               
               return (
                 <div key={type.key} className="space-y-2">
