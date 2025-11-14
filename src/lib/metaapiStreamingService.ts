@@ -351,20 +351,43 @@ class PositionListener {
               console.error('❌ Error sending Telegram notification:', telegramError)
             }
           }
-        } catch (signalError) {
+        } catch (signalError: any) {
           console.error('❌ Error creating signal:', signalError)
+          
+          // Check for Firestore quota exceeded error
+          const isQuotaError = 
+            signalError?.code === 'resource-exhausted' ||
+            signalError?.message?.includes('RESOURCE_EXHAUSTED') ||
+            signalError?.message?.includes('Quota exceeded')
+          
+          if (isQuotaError) {
+            console.error('🚫 Firestore quota exceeded - skipping signal creation and logging')
+            // Don't log quota errors to Firestore (to avoid using more quota)
+            // Just log to console for monitoring
+            return // Exit early to avoid more Firestore operations
+          }
 
-          await addStreamingLog({
-            type: 'error',
-            message: `Error creating signal for position ${positionId}`,
-            positionId,
-            accountId: this.accountId,
-            success: false,
-            error: signalError instanceof Error ? signalError.message : 'Unknown error',
-            details: {
-              error: signalError
+          // Only log non-quota errors to Firestore
+          try {
+            await addStreamingLog({
+              type: 'error',
+              message: `Error creating signal for position ${positionId}`,
+              positionId,
+              accountId: this.accountId,
+              success: false,
+              error: signalError instanceof Error ? signalError.message : 'Unknown error',
+              details: {
+                error: signalError?.code || signalError?.message || 'Unknown error'
+              }
+            })
+          } catch (logError: any) {
+            // If logging also fails (e.g., quota exceeded), just skip
+            if (logError?.code !== 'resource-exhausted' && 
+                !logError?.message?.includes('RESOURCE_EXHAUSTED') &&
+                !logError?.message?.includes('Quota exceeded')) {
+              console.error('❌ Could not log error to Firestore:', logError)
             }
-          })
+          }
         } finally {
           // Remove from processing set
           processingPositions.delete(positionId)

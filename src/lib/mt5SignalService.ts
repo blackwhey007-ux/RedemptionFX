@@ -490,8 +490,19 @@ export async function createSignalFromMT5Position(
       signal,
       alreadyExists: false
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in createSignalFromMT5Position:', error)
+    
+    // Check for Firestore quota exceeded error
+    if (error?.code === 'resource-exhausted' || 
+        error?.message?.includes('RESOURCE_EXHAUSTED') ||
+        error?.message?.includes('Quota exceeded')) {
+      console.error('❌ Firestore quota exceeded - cannot create signal')
+      
+      // Return a more user-friendly error
+      throw new Error('Firestore quota exceeded. Please check your Firebase billing or wait for quota reset.')
+    }
+    
     throw error
   }
 }

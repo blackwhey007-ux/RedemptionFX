@@ -16,18 +16,22 @@ export const safeGetSignalResult = (signal: Signal): number => {
 
 // Create a new signal
 export const createSignal = async (signalData: Omit<Signal, 'id' | 'createdAt' | 'updatedAt' | 'isActive'>) => {
-  try {
-    console.log('Creating signal with data:', signalData)
-    const signal = {
-      ...signalData,
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-      isActive: true
-    }
-    
-    console.log('Signal object to save:', signal)
-    const docRef = await addDoc(collection(db, 'signals'), signal)
-    console.log('Signal saved with ID:', docRef.id)
+  const maxRetries = 3
+  let attempt = 0
+  
+  while (attempt < maxRetries) {
+    try {
+      console.log('Creating signal with data:', signalData)
+      const signal = {
+        ...signalData,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        isActive: true
+      }
+      
+      console.log('Signal object to save:', signal)
+      const docRef = await addDoc(collection(db, 'signals'), signal)
+      console.log('Signal saved with ID:', docRef.id)
     
     // Create enhanced notification for the signal with detailed information
     const signalType = signalData.type === 'BUY' ? '📈 BUY' : '📉 SELL'
@@ -60,18 +64,59 @@ ${signalType} @ ${signalData.entryPrice}
       // Add detailed signal data for programmatic access
       signalData: cleanSignalData
     }
-    console.log('Creating enhanced signal notification:', notificationData)
-    await createSignalNotification(notificationData)
-    
-    // NOTE: Telegram notifications are ONLY sent by the Open Trades streaming service (MT5 auto-detection)
-    // Manual signals created from Signal Management page do NOT send Telegram notifications
-    console.log('✅ Signal created - Telegram notifications disabled for manual signals')
-    
-    return { id: docRef.id, ...signal }
-  } catch (error) {
-    console.error('Error creating signal:', error)
-    throw error
+      console.log('Creating enhanced signal notification:', notificationData)
+      
+      // Try to create notification, but don't fail if quota is exceeded
+      try {
+        await createSignalNotification(notificationData)
+      } catch (notificationError: any) {
+        // If quota exceeded, skip notification creation
+        if (notificationError?.code === 'resource-exhausted' || 
+            notificationError?.message?.includes('RESOURCE_EXHAUSTED') ||
+            notificationError?.message?.includes('Quota exceeded')) {
+          console.warn('⚠️ Firestore quota exceeded - skipping notification creation')
+        } else {
+          // Re-throw other errors
+          throw notificationError
+        }
+      }
+      
+      // NOTE: Telegram notifications are ONLY sent by the Open Trades streaming service (MT5 auto-detection)
+      // Manual signals created from Signal Management page do NOT send Telegram notifications
+      console.log('✅ Signal created - Telegram notifications disabled for manual signals')
+      
+      return { id: docRef.id, ...signal }
+    } catch (error: any) {
+      attempt++
+      
+      // Check for Firestore quota exceeded error
+      const isQuotaError = 
+        error?.code === 'resource-exhausted' ||
+        error?.message?.includes('RESOURCE_EXHAUSTED') ||
+        error?.message?.includes('Quota exceeded')
+      
+      if (isQuotaError) {
+        if (attempt < maxRetries) {
+          // Exponential backoff: wait 2^attempt seconds
+          const delay = Math.pow(2, attempt) * 1000
+          console.warn(`⚠️ Firestore quota exceeded, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})...`)
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue // Retry
+        } else {
+          // Max retries reached
+          console.error('❌ Firestore quota exceeded after all retries')
+          throw new Error('Firestore quota exceeded. Please check your Firebase billing or wait for quota reset.')
+        }
+      }
+      
+      // For non-quota errors, throw immediately
+      console.error('Error creating signal:', error)
+      throw error
+    }
   }
+  
+  // Should never reach here, but just in case
+  throw new Error('Failed to create signal after all retries')
 }
 
 // Get signals by category
