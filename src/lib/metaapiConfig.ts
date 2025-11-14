@@ -103,13 +103,51 @@ export async function createMetaApiInstanceSafely(
 ): Promise<any> {
   const config = getMetaApiConfig(token, additionalOptions)
   
+  // Ensure storage directory exists in serverless environments
+  if (config.storagePath && typeof window === 'undefined') {
+    try {
+      // In serverless, we can't use fs.mkdirSync directly, but we can try
+      // MetaAPI SDK should handle directory creation, but we ensure env var is set
+      if (!process.env.METAAPI_STORAGE_PATH) {
+        process.env.METAAPI_STORAGE_PATH = config.storagePath
+      }
+      
+      // Try to ensure the directory structure exists using Node.js fs
+      // Only in server-side environments
+      if (typeof require !== 'undefined') {
+        try {
+          const fs = require('fs')
+          const path = require('path')
+          const dirPath = config.storagePath
+          
+          // Try to create directory if it doesn't exist (may fail in read-only filesystems)
+          if (!fs.existsSync(dirPath)) {
+            try {
+              fs.mkdirSync(dirPath, { recursive: true })
+              console.log(`✅ Created MetaAPI storage directory: ${dirPath}`)
+            } catch (mkdirError: any) {
+              // If mkdir fails, it's okay - MetaAPI SDK will try to create it or use in-memory
+              console.warn(`⚠️ Could not create directory ${dirPath}, MetaAPI SDK will handle it:`, mkdirError.message)
+            }
+          }
+        } catch (fsError) {
+          // fs module not available or error - that's okay, MetaAPI SDK will handle it
+          console.warn('⚠️ Could not check/create storage directory, MetaAPI SDK will handle it')
+        }
+      }
+    } catch (dirError) {
+      console.warn('⚠️ Error ensuring storage directory exists:', dirError)
+      // Continue anyway - MetaAPI SDK should handle it
+    }
+  }
+  
   try {
     // Try to create MetaAPI instance with configured storage path
     const instance = new MetaApiClass(token, config)
     return instance
   } catch (error: any) {
     // If directory creation fails, try without storage path (might use in-memory)
-    if (error.message?.includes('ENOENT') || error.message?.includes('mkdir')) {
+    if (error.message?.includes('ENOENT') || error.message?.includes('mkdir') || error.message?.includes('.metaapi')) {
       console.warn('⚠️ MetaAPI SDK directory creation failed, attempting without storage path:', error.message)
       
       try {

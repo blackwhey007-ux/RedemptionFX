@@ -491,15 +491,45 @@ export async function initializeStreaming(): Promise<{ success: boolean; error?:
 
     console.log('📡 Setting up MetaAPI streaming for account:', accountId)
 
-    // Lazy load MetaAPI SDK
-    const MetaApiModule = await import('metaapi.cloud-sdk')
-    const MetaApi = MetaApiModule.default
-    const SynchronizationListener = MetaApiModule.SynchronizationListener
-
-    console.log('✅ MetaAPI SDK loaded')
-
-    // Import serverless-safe MetaAPI configuration helper
+    // Import serverless-safe MetaAPI configuration helper FIRST
+    // This sets METAAPI_STORAGE_PATH before SDK loads
     const { createMetaApiInstanceSafely } = await import('./metaapiConfig')
+    
+    // Ensure environment variable is set before SDK import
+    // MetaAPI SDK checks this during module initialization
+    if (typeof window === 'undefined' && !process.env.METAAPI_STORAGE_PATH) {
+      const isServerless = 
+        process.env.VERCEL || 
+        process.env.VERCEL_ENV || 
+        process.env.AWS_LAMBDA_FUNCTION_NAME ||
+        process.env.FUNCTION_TARGET ||
+        process.env.K_SERVICE ||
+        process.env.FUNCTIONS_WORKER_RUNTIME
+      
+      if (isServerless) {
+        process.env.METAAPI_STORAGE_PATH = '/tmp/.metaapi'
+        console.log('🔧 Set METAAPI_STORAGE_PATH=/tmp/.metaapi for serverless')
+      }
+    }
+
+    // Lazy load MetaAPI SDK AFTER config helper has set environment variables
+    let MetaApiModule
+    let MetaApi
+    let SynchronizationListener
+    
+    try {
+      MetaApiModule = await import('metaapi.cloud-sdk')
+      MetaApi = MetaApiModule.default
+      SynchronizationListener = MetaApiModule.SynchronizationListener
+      console.log('✅ MetaAPI SDK loaded')
+    } catch (importError: any) {
+      console.error('❌ Failed to import MetaAPI SDK:', importError)
+      // Check if it's a directory creation error
+      if (importError.message?.includes('ENOENT') || importError.message?.includes('mkdir')) {
+        throw new Error(`MetaAPI SDK initialization failed: ${importError.message}. Ensure METAAPI_STORAGE_PATH is set to /tmp/.metaapi in serverless environments.`)
+      }
+      throw importError
+    }
 
     // Create MetaAPI instance with serverless-compatible storage path
     const api = await createMetaApiInstanceSafely(MetaApi, token, {

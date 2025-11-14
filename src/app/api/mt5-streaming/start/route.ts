@@ -72,7 +72,11 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Error starting streaming:', error)
+    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    console.error('❌ Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)))
+    
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorStack = error instanceof Error ? error.stack : undefined
     let statusCode = 500
     
     // Handle subscription limit specially
@@ -80,9 +84,16 @@ export async function POST(request: NextRequest) {
       statusCode = 429
     }
     
+    // Handle ENOENT/mkdir errors
+    if (errorMessage.includes('ENOENT') || errorMessage.includes('mkdir') || errorMessage.includes('.metaapi')) {
+      console.error('❌ MetaAPI directory creation error detected!')
+      console.error('   This should be fixed by metaapiConfig.ts setting METAAPI_STORAGE_PATH')
+    }
+    
     return NextResponse.json({
       success: false,
       error: errorMessage,
+      errorDetails: process.env.NODE_ENV === 'development' ? errorStack : undefined,
       hint: statusCode === 429 ? 'Visit https://app.metaapi.cloud/ to manage connections or call POST /api/mt5-streaming/cleanup' : undefined
     }, { status: statusCode })
   }
