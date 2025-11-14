@@ -12,6 +12,7 @@ import {
   MT5TradeHistory,
   TradeHistoryStats
 } from '@/lib/mt5TradeHistoryService'
+import { getMT5Settings } from '@/lib/mt5SettingsService'
 import {
   RefreshCw,
   Download,
@@ -21,7 +22,8 @@ import {
   CheckCircle,
   XCircle,
   Edit,
-  Trash2
+  Trash2,
+  AlertCircle
 } from 'lucide-react'
 import { EditTradeDialog } from './EditTradeDialog'
 import { deleteTradeHistory } from '@/lib/mt5TradeHistoryService'
@@ -32,6 +34,7 @@ export function MT5TradeHistoryPanel() {
   const [stats, setStats] = useState<TradeHistoryStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [symbols, setSymbols] = useState<string[]>([])
+  const [adminAccountConfigured, setAdminAccountConfigured] = useState(true)
   
   // Filters
   const [symbolFilter, setSymbolFilter] = useState<string>('all')
@@ -54,17 +57,36 @@ export function MT5TradeHistoryPanel() {
       
       console.log('🔄 [UI] Loading trade history data...')
       
-      // Load symbols
-      const symbolsList = await getTradeHistorySymbols()
+      // Get admin MetaAPI account ID from settings
+      const mt5Settings = await getMT5Settings()
+      const adminAccountId = mt5Settings?.accountId
+      
+      if (!adminAccountId) {
+        console.warn('⚠️ [UI] No admin MetaAPI account configured')
+        setTrades([])
+        setStats(null)
+        setSymbols([])
+        setAdminAccountConfigured(false)
+        return
+      }
+      
+      setAdminAccountConfigured(true)
+      
+      console.log(`📋 [UI] Using admin MetaAPI account: ${adminAccountId}`)
+      
+      // Load symbols (filtered by admin account)
+      const symbolsList = await getTradeHistorySymbols({ accountId: adminAccountId })
       setSymbols(symbolsList)
 
-      // Load trades with filters
+      // Load trades with filters - ONLY from admin MetaAPI account
       const filters = {
         symbol: symbolFilter !== 'all' ? symbolFilter : undefined,
         type: typeFilter !== 'all' ? typeFilter : undefined,
         profitLoss: profitFilter,
         closedBy: closedByFilter,
-        limitCount: limitFilter
+        limitCount: limitFilter,
+        accountId: adminAccountId // Filter by admin MetaAPI account only
+        // Do NOT include userId filter - admin should see all trades from admin account
       }
 
       const [tradesData, statsData] = await Promise.all([
@@ -156,7 +178,7 @@ export function MT5TradeHistoryPanel() {
             MT5 Live Trading History
           </h2>
           <p className="text-muted-foreground mt-1">
-            Archived closed trades from MT5 streaming with complete statistics
+            Archived closed trades from admin MetaAPI account with complete statistics
           </p>
         </div>
         <div className="flex gap-2">
@@ -170,6 +192,24 @@ export function MT5TradeHistoryPanel() {
           </Button>
         </div>
       </div>
+
+      {/* No Admin Account Configured Message */}
+      {!adminAccountConfigured && !loading && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-8">
+              <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No Admin MetaAPI Account Configured</h3>
+              <p className="text-muted-foreground mb-4">
+                Please configure the MetaAPI account in Admin → Telegram Settings → MT5 Integration Settings
+              </p>
+              <p className="text-sm text-muted-foreground">
+                The Trade History page only shows trades from the admin MetaAPI account configured in the admin settings.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Statistics Dashboard */}
       {stats && (

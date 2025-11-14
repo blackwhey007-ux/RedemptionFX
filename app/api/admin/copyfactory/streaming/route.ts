@@ -38,17 +38,14 @@ export async function POST(request: NextRequest) {
       strategyId: strategyId
     })
   } catch (error) {
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return handleAuthError()
-    }
-
+    const authError = handleAuthError(error)
     console.error('[CopyTradingStreaming] Error starting stream:', error)
     return NextResponse.json(
       {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to start streaming'
       },
-      { status: 500 }
+      { status: authError.status }
     )
   }
 }
@@ -87,17 +84,14 @@ export async function DELETE(request: NextRequest) {
       accountId: masterAccountId
     })
   } catch (error) {
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return handleAuthError()
-    }
-
+    const authError = handleAuthError(error)
     console.error('[CopyTradingStreaming] Error stopping stream:', error)
     return NextResponse.json(
       {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to stop streaming'
       },
-      { status: 500 }
+      { status: authError.status }
     )
   }
 }
@@ -122,8 +116,7 @@ export async function GET(request: NextRequest) {
           accountId: strategy.accountId,
           strategyId: strategy.strategyId,
           strategyName: strategy.name,
-          isStreaming: status?.isActive || false,
-          lastEvent: status?.lastEvent
+          isStreaming: status?.isActive || false
         }
       })
     )
@@ -133,17 +126,14 @@ export async function GET(request: NextRequest) {
       statuses
     })
   } catch (error) {
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return handleAuthError()
-    }
-
+    const authError = handleAuthError(error)
     console.error('[CopyTradingStreaming] Error getting status:', error)
     return NextResponse.json(
       {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to get streaming status'
       },
-      { status: 500 }
+      { status: authError.status }
     )
   }
 }

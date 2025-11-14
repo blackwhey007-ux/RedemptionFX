@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getTradeHistory, getTradeHistoryStats, MT5TradeHistory } from '@/lib/mt5TradeHistoryService'
+import { getMT5Settings } from '@/lib/mt5SettingsService'
 
 export async function GET(request: Request) {
   try {
@@ -14,9 +15,46 @@ export async function GET(request: Request) {
       ? new Date(parseInt(year), parseInt(month) + 1, 0, 23, 59, 59)
       : undefined
     
+    // Get admin MetaAPI account ID from settings
+    const mt5Settings = await getMT5Settings()
+    const adminAccountId = mt5Settings?.accountId
+    
+    if (!adminAccountId) {
+      // Return empty results if no admin account configured
+      return NextResponse.json({
+        success: true,
+        stats: {
+          totalTrades: 0,
+          completedTrades: 0,
+          activeTrades: 0,
+          winningTrades: 0,
+          losingTrades: 0,
+          breakevenTrades: 0,
+          totalPips: 0,
+          totalProfit: 0,
+          averageWin: 0,
+          averageLoss: 0,
+          winRate: 0,
+          profitFactor: 0,
+          averageRR: 0,
+          bestTrade: 0,
+          worstTrade: 0,
+          currentWinStreak: 0,
+          monthlyPips: 0,
+          monthlyWinRate: 0,
+          syncMethod: 'mt5_live',
+          lastUpdated: new Date().toISOString()
+        },
+        trades: [],
+        dailyData: []
+      })
+    }
+    
+    // Filter trades by admin MetaAPI account only
+    // Do NOT include userId filter - admin should see all trades from admin account
     const [trades, stats] = await Promise.all([
-      getTradeHistory({ startDate, endDate, limitCount: 1000 }),
-      getTradeHistoryStats({ startDate, endDate })
+      getTradeHistory({ startDate, endDate, limitCount: 1000, accountId: adminAccountId }),
+      getTradeHistoryStats({ startDate, endDate, accountId: adminAccountId })
     ])
     
     // Calculate win streak

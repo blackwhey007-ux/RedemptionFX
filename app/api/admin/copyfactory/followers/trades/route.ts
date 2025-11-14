@@ -122,16 +122,17 @@ export async function GET(request: NextRequest) {
     const limitedTrades = allTrades.slice(0, limitCount)
 
     // Calculate statistics
+    const totalProfit = limitedTrades.reduce((sum, t) => sum + (t.profit || 0), 0)
     const stats: TradeHistoryStats = {
       totalTrades: limitedTrades.length,
       winningTrades: limitedTrades.filter(t => t.profit > 0).length,
       losingTrades: limitedTrades.filter(t => t.profit < 0).length,
-      breakevenTrades: limitedTrades.filter(t => t.profit === 0).length,
-      totalProfit: limitedTrades.reduce((sum, t) => sum + (t.profit || 0), 0),
+      totalProfit,
       totalPips: limitedTrades.reduce((sum, t) => sum + (t.pips || 0), 0),
       winRate: limitedTrades.length > 0
         ? (limitedTrades.filter(t => t.profit > 0).length / limitedTrades.length) * 100
         : 0,
+      averageProfit: limitedTrades.length > 0 ? totalProfit / limitedTrades.length : 0,
       profitFactor: (() => {
         const wins = limitedTrades.filter(t => t.profit > 0).reduce((sum, t) => sum + Math.abs(t.profit), 0)
         const losses = limitedTrades.filter(t => t.profit < 0).reduce((sum, t) => sum + Math.abs(t.profit), 0)
@@ -145,6 +146,12 @@ export async function GET(request: NextRequest) {
         : 0,
       worstTrade: limitedTrades.length > 0
         ? Math.min(...limitedTrades.map(t => t.profit || 0))
+        : 0,
+      averageRR: limitedTrades.length > 0
+        ? limitedTrades
+            .filter(t => t.riskReward && t.riskReward > 0)
+            .reduce((sum, t) => sum + (t.riskReward || 0), 0) /
+          limitedTrades.filter(t => t.riskReward && t.riskReward > 0).length || 0
         : 0
     }
 

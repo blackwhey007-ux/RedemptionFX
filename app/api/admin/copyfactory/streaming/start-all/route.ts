@@ -59,17 +59,14 @@ export async function POST(request: NextRequest) {
       errors: errors.length > 0 ? errors : undefined
     })
   } catch (error) {
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return handleAuthError()
-    }
-
+    const authError = handleAuthError(error)
     console.error('[CopyTradingStreaming] Error starting all streams:', error)
     return NextResponse.json(
       {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to start streaming'
       },
-      { status: 500 }
+      { status: authError.status }
     )
   }
 }

@@ -14,6 +14,7 @@ import { OpenTradesPanel } from '@/components/admin/OpenTradesPanel'
 import { MT5TradeHistoryPanel } from '@/components/admin/MT5TradeHistoryPanel'
 // Removed profile imports - VIP Results now shows signals only
 import { PromotionalContentService, PromotionalContent } from '@/lib/promotionalContentService'
+import { useAuth } from '@/contexts/AuthContext'
 import { 
   RefreshCw, 
   Activity, 
@@ -28,6 +29,7 @@ import {
 } from 'lucide-react'
 
 export default function VipSyncPage() {
+  const { user } = useAuth()
   const [loading, setLoading] = useState(true)
   
   // Removed profile selection state - VIP Results now shows signals only
@@ -120,6 +122,23 @@ export default function VipSyncPage() {
     
     loadData()
   }, [])
+
+  // Admin access check
+  if (!user || user.role !== 'admin') {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-96">
+          <div className="text-center">
+            <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Access Denied</h2>
+            <p className="text-slate-600 dark:text-slate-400">
+              You need admin privileges to access VIP Sync Management.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (loading) {
     return (

@@ -10,7 +10,8 @@ import { toast } from 'sonner'
 
 export default function TestPromotionDebugPage() {
   const { user } = useAuth()
-  const { notifications, unreadCount } = useUnifiedNotifications()
+  const { notifications } = useUnifiedNotifications()
+  const unreadCount = notifications.filter(n => !n.read).length
   const [loading, setLoading] = useState(false)
   const [debugInfo, setDebugInfo] = useState<string[]>([])
 

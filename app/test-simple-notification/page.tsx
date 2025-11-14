@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/badge'
 
 export default function TestSimpleNotificationPage() {
   const { user } = useAuth()
-  const { notifications, unreadCount, loading, addNotification } = useUnifiedNotifications()
+  const { notifications, loading } = useUnifiedNotifications()
+  const unreadCount = notifications.filter(n => !n.read).length
   const [testResults, setTestResults] = useState<string[]>([])
 
   const addResult = (result: string) => {
@@ -27,16 +28,11 @@ export default function TestSimpleNotificationPage() {
       addResult('Creating test notification...')
       
       // Test direct notification creation
-      await addNotification({
-        userId: user.uid,
-        type: 'system',
-        title: 'Test Notification',
-        message: 'This is a test notification to verify the system works',
-        data: {
-          soundType: 'info',
-          actionUrl: '/dashboard'
-        }
-      })
+      await UserNotificationService.createSystemNotification(
+        user.uid,
+        'Test Notification',
+        'This is a test notification to verify the system works'
+      )
       
       addResult('✅ Notification created successfully!')
     } catch (error) {

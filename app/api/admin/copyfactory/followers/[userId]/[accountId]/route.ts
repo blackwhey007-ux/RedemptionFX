@@ -9,12 +9,12 @@ import {
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { userId: string; accountId: string } }
+  { params }: { params: Promise<{ userId: string; accountId: string }> }
 ) {
   try {
     await requireAdmin(request)
 
-    const { userId, accountId } = params
+    const { userId, accountId } = await params
 
     if (!userId || !accountId) {
       return NextResponse.json(

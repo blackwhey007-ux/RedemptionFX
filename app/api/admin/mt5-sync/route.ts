@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { syncVipTrades, getVipSyncLogs } from '@/lib/mt5VipService'
-import { getCurrentUser } from '@/lib/firebaseAuth'
+import { getCurrentUser, isAdmin } from '@/lib/firebaseAuth'
 
 export async function POST(request: NextRequest) {
   try {
     // Check if user is admin
     const user = getCurrentUser()
-    if (!user || user.role !== 'admin') {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const userIsAdmin = await isAdmin(user.uid)
+    if (!userIsAdmin) {
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -46,8 +50,12 @@ export async function GET(request: NextRequest) {
   try {
     // Check if user is admin
     const user = getCurrentUser()
-    if (!user || user.role !== 'admin') {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const userIsAdmin = await isAdmin(user.uid)
+    if (!userIsAdmin) {
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
     const syncLogs = await getVipSyncLogs(10)

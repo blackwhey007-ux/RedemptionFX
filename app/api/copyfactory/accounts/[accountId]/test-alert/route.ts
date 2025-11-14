@@ -108,17 +108,14 @@ export async function POST(
       }
     })
   } catch (error) {
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return handleAuthError()
-    }
-
+    const authError = handleAuthError(error)
     console.error('[TestAlert] Error sending test alert:', error)
     return NextResponse.json(
       {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to send test alert'
       },
-      { status: 500 }
+      { status: authError.status }
     )
   }
 }

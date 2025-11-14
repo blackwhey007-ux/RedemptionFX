@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
       const accountLinkId = await linkCopyTradingAccount(
         user.uid,
         copyTradingAccountId,
-        accountName || account.accountName || copyTradingAccountId
+        accountName || copyTradingAccountId
       )
 
       return NextResponse.json({

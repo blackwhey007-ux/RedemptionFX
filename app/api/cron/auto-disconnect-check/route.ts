@@ -73,7 +73,8 @@ export async function GET(request: NextRequest) {
           ...data,
           createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
           lastErrorAt: data.lastErrorAt?.toDate ? data.lastErrorAt.toDate() : undefined,
-          autoDisconnectedAt: data.autoDisconnectedAt?.toDate ? data.autoDisconnectedAt.toDate() : undefined
+          autoDisconnectedAt: data.autoDisconnectedAt?.toDate ? data.autoDisconnectedAt.toDate() : undefined,
+          consecutiveErrorCount: data.consecutiveErrorCount || 0
         }
 
         // Check if should disconnect

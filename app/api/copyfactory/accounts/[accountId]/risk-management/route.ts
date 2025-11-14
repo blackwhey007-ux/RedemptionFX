@@ -135,16 +135,14 @@ export async function POST(
       })
     }
   } catch (error) {
+    const authError = handleAuthError(error)
     console.error('[RiskManagementAPI] Error:', error)
-    if (error instanceof Error && error.message.includes('Unauthorized')) {
-      return handleAuthError()
-    }
     return NextResponse.json(
       {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to manage risk'
       },
-      { status: 500 }
+      { status: authError.status }
     )
   }
 }
@@ -219,16 +217,14 @@ export async function GET(
       }
     })
   } catch (error) {
+    const authError = handleAuthError(error)
     console.error('[RiskManagementAPI] Error:', error)
-    if (error instanceof Error && error.message.includes('Unauthorized')) {
-      return handleAuthError()
-    }
     return NextResponse.json(
       {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to get risk status'
       },
-      { status: 500 }
+      { status: authError.status }
     )
   }
 }

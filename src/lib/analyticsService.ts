@@ -72,6 +72,107 @@ export interface AnalyticsData {
   tradesPerDay: { label: string; count: number }[]
   tradesPerWeek: { label: string; count: number }[]
   tradesPerMonth: { label: string; count: number }[]
+  
+  // Enhanced metrics (new)
+  bestTimeAnalysis?: BestTimeAnalysis
+  riskMetrics?: RiskMetrics
+  optimizationInsights?: OptimizationInsights
+  expectancy?: number
+  profitFactor?: number
+  netProfit?: number
+  averageRR?: number
+}
+
+// Best Time to Trade Analysis
+export interface BestTimeAnalysis {
+  hourlyPerformance: {
+    hour: number
+    hourLabel: string
+    profit: number
+    winRate: number
+    tradeCount: number
+    profitFactor: number
+    avgRR: number
+  }[]
+  bestHours: string[] // Top 5 hours
+  worstHours: string[] // Bottom 5 hours
+  optimalWindows: {
+    start: string
+    end: string
+    profit: number
+    winRate: number
+    tradeCount: number
+  }[]
+  recommendations: string[]
+  heatmapData: {
+    hour: number
+    day: number
+    dayLabel: string
+    profit: number
+    winRate: number
+    tradeCount: number
+  }[]
+}
+
+// Advanced Risk Metrics
+export interface RiskMetrics {
+  maxDrawdown: number
+  maxDrawdownPercent: number
+  recoveryFactor: number
+  riskOfRuin: number
+  averageRisk: number
+  sharpeRatio: number
+  expectancy: number
+  drawdownPeriods: {
+    start: Date
+    end: Date
+    depth: number
+    depthPercent: number
+  }[]
+  equityCurve: {
+    date: Date
+    equity: number
+    drawdown: number
+    drawdownPercent: number
+  }[]
+}
+
+// Performance Optimization Insights
+export interface OptimizationInsights {
+  bestPairs: {
+    symbol: string
+    profit: number
+    winRate: number
+    trades: number
+    avgRR: number
+    profitFactor: number
+  }[]
+  optimalDuration: {
+    duration: string
+    profit: number
+    winRate: number
+    trades: number
+  }
+  bestTradeSize: {
+    size: string
+    profit: number
+    winRate: number
+    trades: number
+  }
+  monthlyConsistency: number
+  bestDay: {
+    day: string
+    profit: number
+    winRate: number
+    trades: number
+  }
+  bestMonth: {
+    month: string
+    profit: number
+    winRate: number
+    trades: number
+  }
+  recommendations: string[]
 }
 
 export const calculateAnalytics = (trades: Trade[], initialBalance?: number, profileStartingBalance?: number): AnalyticsData => {
@@ -170,8 +271,28 @@ export const calculateAnalytics = (trades: Trade[], initialBalance?: number, pro
   // Trade frequency - only closed trades
   const { tradesPerDay, tradesPerWeek, tradesPerMonth } = calculateTradeFrequency(closedTrades)
   
+  // Calculate profit factor
+  const totalWins = winningTrades.reduce((sum, t) => sum + Math.abs(t.profit), 0)
+  const totalLosses = losingTrades.reduce((sum, t) => sum + Math.abs(t.profit), 0)
+  const profitFactor = totalLosses > 0 ? totalWins / totalLosses : totalWins > 0 ? 999 : 0
+  
+  // Calculate average R:R
+  const tradesWithRR = closedTrades.filter(t => t.rr && t.rr > 0)
+  const averageRR = tradesWithRR.length > 0
+    ? tradesWithRR.reduce((sum, t) => sum + (t.rr || 0), 0) / tradesWithRR.length
+    : 0
+  
+  // Calculate expectancy
+  const expectancy = calculateExpectancy(closedTrades)
+  
+  // Enhanced analytics
+  const bestTimeAnalysis = calculateBestTradingTimes(closedTrades)
+  const riskMetrics = calculateAdvancedRiskMetrics(closedTrades, actualInitialBalance, pnlOverTime)
+  const optimizationInsights = calculatePerformanceOptimization(closedTrades, dailyData, monthlyData)
+  
   return {
     totalPnL,
+    netProfit: totalPnL,
     accountBalance,
     winRate,
     totalTrades,
@@ -200,7 +321,14 @@ export const calculateAnalytics = (trades: Trade[], initialBalance?: number, pro
     calendarData,
     tradesPerDay,
     tradesPerWeek,
-    tradesPerMonth
+    tradesPerMonth,
+    // Enhanced metrics
+    bestTimeAnalysis,
+    riskMetrics,
+    optimizationInsights,
+    expectancy,
+    profitFactor,
+    averageRR
   }
 }
 
@@ -412,5 +540,507 @@ const calculateTradeFrequency = (trades: Trade[]) => {
     tradesPerWeek: tradesPerWeek.slice(0, 10), 
     tradesPerMonth: tradesPerMonth.slice(0, 12)
   }
+}
+
+// Calculate Best Trading Times
+function calculateBestTradingTimes(trades: Trade[]): BestTimeAnalysis {
+  // Hourly performance with detailed metrics
+  const hourlyMap = new Map<number, {
+    profit: number
+    wins: number
+    losses: number
+    trades: Trade[]
+    totalRR: number
+    rrCount: number
+  }>()
+  
+  // Day x Hour heatmap data
+  const heatmapMap = new Map<string, {
+    profit: number
+    wins: number
+    losses: number
+    trades: Trade[]
+  }>()
+  
+  trades.forEach(trade => {
+    const tradeDate = parseISO(trade.date)
+    const dayOfWeek = tradeDate.getDay()
+    const hour = trade.time ? parseInt(trade.time.split(':')[0]) : 0
+    
+    // Hourly aggregation
+    const hourData = hourlyMap.get(hour) || { profit: 0, wins: 0, losses: 0, trades: [], totalRR: 0, rrCount: 0 }
+    hourData.profit += trade.profit
+    if (trade.result > 0) hourData.wins++
+    else if (trade.result < 0) hourData.losses++
+    hourData.trades.push(trade)
+    if (trade.rr && trade.rr > 0) {
+      hourData.totalRR += trade.rr
+      hourData.rrCount++
+    }
+    hourlyMap.set(hour, hourData)
+    
+    // Heatmap aggregation (day x hour)
+    const heatmapKey = `${dayOfWeek}-${hour}`
+    const heatmapData = heatmapMap.get(heatmapKey) || { profit: 0, wins: 0, losses: 0, trades: [] }
+    heatmapData.profit += trade.profit
+    if (trade.result > 0) heatmapData.wins++
+    else if (trade.result < 0) heatmapData.losses++
+    heatmapData.trades.push(trade)
+    heatmapMap.set(heatmapKey, heatmapData)
+  })
+  
+  // Build hourly performance array
+  const hourlyPerformance = Array.from({ length: 24 }, (_, hour) => {
+    const data = hourlyMap.get(hour) || { profit: 0, wins: 0, losses: 0, trades: [], totalRR: 0, rrCount: 0 }
+    const totalTrades = data.trades.length
+    const winRate = totalTrades > 0 ? (data.wins / totalTrades) * 100 : 0
+    const wins = data.wins > 0 ? data.wins : 1
+    const losses = data.losses > 0 ? data.losses : 1
+    const avgWin = data.wins > 0 ? data.trades.filter(t => t.result > 0).reduce((sum, t) => sum + Math.abs(t.profit), 0) / data.wins : 0
+    const avgLoss = data.losses > 0 ? data.trades.filter(t => t.result < 0).reduce((sum, t) => sum + Math.abs(t.profit), 0) / data.losses : 0
+    const profitFactor = avgLoss > 0 ? (avgWin * data.wins) / (avgLoss * data.losses) : data.wins > 0 ? 999 : 0
+    const avgRR = data.rrCount > 0 ? data.totalRR / data.rrCount : 0
+    
+    return {
+      hour,
+      hourLabel: `${hour.toString().padStart(2, '0')}:00`,
+      profit: data.profit,
+      winRate,
+      tradeCount: totalTrades,
+      profitFactor,
+      avgRR
+    }
+  }).filter(h => h.tradeCount > 0)
+  
+  // Find best and worst hours
+  const sortedByProfit = [...hourlyPerformance].sort((a, b) => b.profit - a.profit)
+  const bestHours = sortedByProfit.slice(0, 5).map(h => h.hourLabel)
+  const worstHours = sortedByProfit.slice(-5).reverse().map(h => h.hourLabel)
+  
+  // Find optimal trading windows (2-3 hour windows)
+  const optimalWindows: BestTimeAnalysis['optimalWindows'] = []
+  for (let start = 0; start < 22; start++) {
+    const end = start + 2
+    const windowTrades = hourlyPerformance.filter(h => h.hour >= start && h.hour <= end)
+    if (windowTrades.length > 0) {
+      const totalProfit = windowTrades.reduce((sum, h) => sum + h.profit, 0)
+      const totalTrades = windowTrades.reduce((sum, h) => sum + h.tradeCount, 0)
+      const totalWins = windowTrades.reduce((sum, h) => sum + (h.tradeCount * h.winRate / 100), 0)
+      const winRate = totalTrades > 0 ? (totalWins / totalTrades) * 100 : 0
+      
+      if (totalTrades >= 3) { // Minimum 3 trades to consider
+        optimalWindows.push({
+          start: `${start.toString().padStart(2, '0')}:00`,
+          end: `${end.toString().padStart(2, '0')}:00`,
+          profit: totalProfit,
+          winRate,
+          tradeCount: totalTrades
+        })
+      }
+    }
+  }
+  optimalWindows.sort((a, b) => b.profit - a.profit)
+  
+  // Build heatmap data
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const heatmapData: BestTimeAnalysis['heatmapData'] = []
+  for (let day = 0; day < 7; day++) {
+    for (let hour = 0; hour < 24; hour++) {
+      const key = `${day}-${hour}`
+      const data = heatmapMap.get(key)
+      if (data && data.trades.length > 0) {
+        const totalTrades = data.trades.length
+        const winRate = totalTrades > 0 ? (data.wins / totalTrades) * 100 : 0
+        heatmapData.push({
+          hour,
+          day,
+          dayLabel: days[day],
+          profit: data.profit,
+          winRate,
+          tradeCount: totalTrades
+        })
+      }
+    }
+  }
+  
+  // Generate recommendations
+  const recommendations: string[] = []
+  if (bestHours.length > 0) {
+    recommendations.push(`Best trading hours: ${bestHours.slice(0, 3).join(', ')}`)
+  }
+  if (worstHours.length > 0) {
+    recommendations.push(`Avoid trading during: ${worstHours.slice(0, 3).join(', ')}`)
+  }
+  if (optimalWindows.length > 0) {
+    const bestWindow = optimalWindows[0]
+    recommendations.push(`Optimal trading window: ${bestWindow.start} - ${bestWindow.end} (${bestWindow.winRate.toFixed(1)}% win rate)`)
+  }
+  const bestHourData = hourlyPerformance.find(h => h.profit === Math.max(...hourlyPerformance.map(h => h.profit)))
+  if (bestHourData) {
+    recommendations.push(`Peak performance at ${bestHourData.hourLabel} with ${bestHourData.winRate.toFixed(1)}% win rate`)
+  }
+  
+  return {
+    hourlyPerformance,
+    bestHours,
+    worstHours,
+    optimalWindows: optimalWindows.slice(0, 5),
+    recommendations,
+    heatmapData
+  }
+}
+
+// Calculate Advanced Risk Metrics
+function calculateAdvancedRiskMetrics(
+  trades: Trade[],
+  initialBalance: number,
+  pnlOverTime: { date: string; pnl: number; trade?: Trade }[]
+): RiskMetrics {
+  // Calculate equity curve
+  let currentEquity = initialBalance
+  const equityCurve: RiskMetrics['equityCurve'] = []
+  let peakEquity = initialBalance
+  let maxDrawdown = 0
+  let maxDrawdownPercent = 0
+  const drawdownPeriods: RiskMetrics['drawdownPeriods'] = []
+  let drawdownStart: Date | null = null
+  let drawdownDepth = 0
+  let drawdownDepthPercent = 0
+  
+  // Sort trades by date
+  const sortedTrades = [...trades].sort((a, b) => {
+    const dateA = new Date(`${a.date}T${a.time || '00:00'}`)
+    const dateB = new Date(`${b.date}T${b.time || '00:00'}`)
+    return dateA.getTime() - dateB.getTime()
+  })
+  
+  sortedTrades.forEach(trade => {
+    currentEquity += trade.profit
+    const tradeDate = new Date(`${trade.date}T${trade.time || '00:00'}`)
+    
+    if (currentEquity > peakEquity) {
+      peakEquity = currentEquity
+      if (drawdownStart) {
+        // End of drawdown period
+        drawdownPeriods.push({
+          start: drawdownStart,
+          end: tradeDate,
+          depth: drawdownDepth,
+          depthPercent: drawdownDepthPercent
+        })
+        drawdownStart = null
+        drawdownDepth = 0
+        drawdownDepthPercent = 0
+      }
+    } else {
+      const drawdown = peakEquity - currentEquity
+      const drawdownPct = peakEquity > 0 ? (drawdown / peakEquity) * 100 : 0
+      
+      if (!drawdownStart) {
+        drawdownStart = tradeDate
+      }
+      if (drawdown > drawdownDepth) {
+        drawdownDepth = drawdown
+        drawdownDepthPercent = drawdownPct
+      }
+      
+      if (drawdown > maxDrawdown) {
+        maxDrawdown = drawdown
+        maxDrawdownPercent = drawdownPct
+      }
+    }
+    
+    equityCurve.push({
+      date: tradeDate,
+      equity: currentEquity,
+      drawdown: peakEquity - currentEquity,
+      drawdownPercent: peakEquity > 0 ? ((peakEquity - currentEquity) / peakEquity) * 100 : 0
+    })
+  })
+  
+  // Close any open drawdown period
+  if (drawdownStart && sortedTrades.length > 0) {
+    const lastTrade = sortedTrades[sortedTrades.length - 1]
+    const lastDate = new Date(`${lastTrade.date}T${lastTrade.time || '00:00'}`)
+    drawdownPeriods.push({
+      start: drawdownStart,
+      end: lastDate,
+      depth: drawdownDepth,
+      depthPercent: drawdownDepthPercent
+    })
+  }
+  
+  // Calculate recovery factor
+  const totalProfit = trades.reduce((sum, t) => sum + t.profit, 0)
+  const recoveryFactor = maxDrawdown > 0 ? totalProfit / maxDrawdown : totalProfit > 0 ? 999 : 0
+  
+  // Calculate average risk per trade
+  const tradesWithRisk = trades.filter(t => t.risk && t.risk > 0)
+  const averageRisk = tradesWithRisk.length > 0
+    ? tradesWithRisk.reduce((sum, t) => sum + (t.risk || 0), 0) / tradesWithRisk.length
+    : 0
+  
+  // Calculate risk of ruin (simplified)
+  const winRate = trades.length > 0 ? trades.filter(t => t.result > 0).length / trades.length : 0
+  const avgWin = trades.filter(t => t.result > 0).length > 0
+    ? trades.filter(t => t.result > 0).reduce((sum, t) => sum + Math.abs(t.profit), 0) / trades.filter(t => t.result > 0).length
+    : 0
+  const avgLoss = trades.filter(t => t.result < 0).length > 0
+    ? trades.filter(t => t.result < 0).reduce((sum, t) => sum + Math.abs(t.profit), 0) / trades.filter(t => t.result < 0).length
+    : 0
+  
+  // Simplified risk of ruin calculation
+  let riskOfRuin = 0
+  if (winRate > 0 && winRate < 1 && avgLoss > 0) {
+    const riskRewardRatio = avgWin / avgLoss
+    if (riskRewardRatio > 0) {
+      // Kelly Criterion based approximation
+      const kelly = (winRate * riskRewardRatio - (1 - winRate)) / riskRewardRatio
+      riskOfRuin = kelly < 0 ? 100 : Math.max(0, Math.min(100, (1 - kelly) * 100))
+    }
+  }
+  
+  // Calculate Sharpe Ratio (simplified - requires risk-free rate, using 0)
+  const returns = equityCurve.length > 1
+    ? equityCurve.map((point, i) => {
+        if (i === 0) return 0
+        const prevEquity = equityCurve[i - 1].equity
+        return prevEquity > 0 ? ((point.equity - prevEquity) / prevEquity) * 100 : 0
+      }).filter(r => r !== 0)
+    : []
+  const avgReturn = returns.length > 0 ? returns.reduce((sum, r) => sum + r, 0) / returns.length : 0
+  const variance = returns.length > 0
+    ? returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length
+    : 0
+  const stdDev = Math.sqrt(variance)
+  const sharpeRatio = stdDev > 0 ? (avgReturn / stdDev) : 0
+  
+  // Calculate expectancy
+  const expectancy = calculateExpectancy(trades)
+  
+  return {
+    maxDrawdown,
+    maxDrawdownPercent,
+    recoveryFactor,
+    riskOfRuin,
+    averageRisk,
+    sharpeRatio,
+    expectancy,
+    drawdownPeriods,
+    equityCurve
+  }
+}
+
+// Calculate Performance Optimization
+function calculatePerformanceOptimization(
+  trades: Trade[],
+  dailyData: AnalyticsData['dailyData'],
+  monthlyData: AnalyticsData['monthlyData']
+): OptimizationInsights {
+  // Best performing pairs
+  const pairMap = new Map<string, {
+    profit: number
+    wins: number
+    losses: number
+    trades: Trade[]
+    totalRR: number
+    rrCount: number
+  }>()
+  
+  trades.forEach(trade => {
+    const symbol = trade.pair || 'Unknown'
+    const data = pairMap.get(symbol) || { profit: 0, wins: 0, losses: 0, trades: [], totalRR: 0, rrCount: 0 }
+    data.profit += trade.profit
+    if (trade.result > 0) data.wins++
+    else if (trade.result < 0) data.losses++
+    data.trades.push(trade)
+    if (trade.rr && trade.rr > 0) {
+      data.totalRR += trade.rr
+      data.rrCount++
+    }
+    pairMap.set(symbol, data)
+  })
+  
+  const bestPairs = Array.from(pairMap.entries())
+    .map(([symbol, data]) => {
+      const totalTrades = data.trades.length
+      const winRate = totalTrades > 0 ? (data.wins / totalTrades) * 100 : 0
+      const avgRR = data.rrCount > 0 ? data.totalRR / data.rrCount : 0
+      const wins = data.wins > 0 ? data.wins : 1
+      const losses = data.losses > 0 ? data.losses : 1
+      const avgWin = data.wins > 0 ? data.trades.filter(t => t.result > 0).reduce((sum, t) => sum + Math.abs(t.profit), 0) / data.wins : 0
+      const avgLoss = data.losses > 0 ? data.trades.filter(t => t.result < 0).reduce((sum, t) => sum + Math.abs(t.profit), 0) / data.losses : 0
+      const profitFactor = avgLoss > 0 ? (avgWin * data.wins) / (avgLoss * data.losses) : data.wins > 0 ? 999 : 0
+      
+      return {
+        symbol,
+        profit: data.profit,
+        winRate,
+        trades: totalTrades,
+        avgRR,
+        profitFactor
+      }
+    })
+    .filter(p => p.trades >= 3) // Minimum 3 trades
+    .sort((a, b) => b.profit - a.profit)
+    .slice(0, 10)
+  
+  // Optimal trade duration
+  const durationMap = new Map<string, {
+    profit: number
+    wins: number
+    trades: Trade[]
+  }>()
+  
+  trades.forEach(trade => {
+    // Categorize duration (simplified - would need actual duration data)
+    let duration = 'Unknown'
+    if (trade.duration !== undefined) {
+      const hours = trade.duration / 3600
+      if (hours < 1) duration = '< 1 hour'
+      else if (hours < 4) duration = '1-4 hours'
+      else if (hours < 24) duration = '4-24 hours'
+      else if (hours < 168) duration = '1-7 days'
+      else duration = '> 7 days'
+    }
+    
+    const data = durationMap.get(duration) || { profit: 0, wins: 0, trades: [] }
+    data.profit += trade.profit
+    if (trade.result > 0) data.wins++
+    data.trades.push(trade)
+    durationMap.set(duration, data)
+  })
+  
+  const optimalDuration = Array.from(durationMap.entries())
+    .map(([duration, data]) => {
+      const totalTrades = data.trades.length
+      const winRate = totalTrades > 0 ? (data.wins / totalTrades) * 100 : 0
+      return {
+        duration,
+        profit: data.profit,
+        winRate,
+        trades: totalTrades
+      }
+    })
+    .filter(d => d.trades >= 3)
+    .sort((a, b) => b.profit - a.profit)[0] || { duration: 'Unknown', profit: 0, winRate: 0, trades: 0 }
+  
+  // Best trade size (using lot size if available)
+  const sizeMap = new Map<string, {
+    profit: number
+    wins: number
+    trades: Trade[]
+  }>()
+  
+  trades.forEach(trade => {
+    const lotSize = trade.lotSize || 0.1
+    let size = 'Unknown'
+    if (lotSize < 0.1) size = '< 0.1'
+    else if (lotSize < 0.5) size = '0.1-0.5'
+    else if (lotSize < 1) size = '0.5-1.0'
+    else if (lotSize < 2) size = '1.0-2.0'
+    else size = '> 2.0'
+    
+    const data = sizeMap.get(size) || { profit: 0, wins: 0, trades: [] }
+    data.profit += trade.profit
+    if (trade.result > 0) data.wins++
+    data.trades.push(trade)
+    sizeMap.set(size, data)
+  })
+  
+  const bestTradeSize = Array.from(sizeMap.entries())
+    .map(([size, data]) => {
+      const totalTrades = data.trades.length
+      const winRate = totalTrades > 0 ? (data.wins / totalTrades) * 100 : 0
+      return {
+        size,
+        profit: data.profit,
+        winRate,
+        trades: totalTrades
+      }
+    })
+    .filter(s => s.trades >= 3)
+    .sort((a, b) => b.profit - a.profit)[0] || { size: 'Unknown', profit: 0, winRate: 0, trades: 0 }
+  
+  // Monthly consistency (coefficient of variation of monthly profits)
+  const monthlyProfits = monthlyData.map(m => m.profit)
+  const avgMonthlyProfit = monthlyProfits.length > 0
+    ? monthlyProfits.reduce((sum, p) => sum + p, 0) / monthlyProfits.length
+    : 0
+  const variance = monthlyProfits.length > 0
+    ? monthlyProfits.reduce((sum, p) => sum + Math.pow(p - avgMonthlyProfit, 2), 0) / monthlyProfits.length
+    : 0
+  const stdDev = Math.sqrt(variance)
+  const monthlyConsistency = avgMonthlyProfit > 0 && stdDev > 0
+    ? Math.max(0, 100 - (stdDev / Math.abs(avgMonthlyProfit)) * 100)
+    : 0
+  
+  // Best day
+  const bestDay = dailyData.length > 0
+    ? dailyData.reduce((best, day) => day.profit > best.profit ? day : best, dailyData[0])
+    : { day: 'Unknown', profit: 0, winRate: 0, trades: 0 }
+  
+  // Best month
+  const bestMonth = monthlyData.length > 0
+    ? monthlyData.reduce((best, month) => month.profit > best.profit ? month : best, monthlyData[0])
+    : { month: 'Unknown', year: 0, profit: 0, percentage: 0, trades: 0 }
+  
+  // Generate recommendations
+  const recommendations: string[] = []
+  if (bestPairs.length > 0) {
+    const topPair = bestPairs[0]
+    recommendations.push(`Best performing pair: ${topPair.symbol} (${topPair.winRate.toFixed(1)}% win rate, $${topPair.profit.toFixed(2)} profit)`)
+  }
+  if (optimalDuration.trades > 0) {
+    recommendations.push(`Optimal trade duration: ${optimalDuration.duration} (${optimalDuration.winRate.toFixed(1)}% win rate)`)
+  }
+  if (bestDay.trades > 0) {
+    recommendations.push(`Best trading day: ${bestDay.day} (${bestDay.winRate.toFixed(1)}% win rate)`)
+  }
+  if (monthlyConsistency > 0) {
+    recommendations.push(`Monthly consistency: ${monthlyConsistency.toFixed(1)}%`)
+  }
+  
+  return {
+    bestPairs,
+    optimalDuration,
+    bestTradeSize,
+    monthlyConsistency,
+    bestDay: {
+      day: bestDay.day,
+      profit: bestDay.profit,
+      winRate: bestDay.winRate,
+      trades: bestDay.trades
+    },
+    bestMonth: {
+      month: bestMonth.month,
+      profit: bestMonth.profit,
+      winRate: 0, // Would need to calculate
+      trades: bestMonth.trades
+    },
+    recommendations
+  }
+}
+
+// Calculate Expectancy
+function calculateExpectancy(trades: Trade[]): number {
+  if (trades.length === 0) return 0
+  
+  const totalTrades = trades.length
+  const winningTrades = trades.filter(t => t.result > 0)
+  const losingTrades = trades.filter(t => t.result < 0)
+  
+  const winRate = totalTrades > 0 ? winningTrades.length / totalTrades : 0
+  const avgWin = winningTrades.length > 0
+    ? winningTrades.reduce((sum, t) => sum + t.profit, 0) / winningTrades.length
+    : 0
+  const avgLoss = losingTrades.length > 0
+    ? losingTrades.reduce((sum, t) => sum + Math.abs(t.profit), 0) / losingTrades.length
+    : 0
+  
+  // Expectancy = (Win Rate × Average Win) - (Loss Rate × Average Loss)
+  const expectancy = (winRate * avgWin) - ((1 - winRate) * avgLoss)
+  
+  return expectancy
 }
 

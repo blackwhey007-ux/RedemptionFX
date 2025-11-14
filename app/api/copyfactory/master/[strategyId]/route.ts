@@ -22,12 +22,13 @@ function sanitize(strategy: Awaited<ReturnType<typeof getMasterStrategy>>) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { strategyId: string } }
+  context: { params: Promise<{ strategyId: string }> }
 ) {
   try {
     await requireAdmin(request)
 
-    const strategy = await getMasterStrategy(params.strategyId)
+    const { strategyId } = await context.params
+    const strategy = await getMasterStrategy(strategyId)
 
     if (!strategy) {
       return NextResponse.json(
@@ -60,14 +61,15 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { strategyId: string } }
+  context: { params: Promise<{ strategyId: string }> }
 ) {
   try {
     await requireAdmin(request)
+    const { strategyId } = await context.params
     const rawBody = await request.json().catch(() => ({}))
     const body = rawBody && typeof rawBody === 'object' ? rawBody : {}
 
-    const existingStrategy = await getMasterStrategy(params.strategyId)
+    const existingStrategy = await getMasterStrategy(strategyId)
 
     if (!existingStrategy) {
       return NextResponse.json(
@@ -117,16 +119,16 @@ export async function PATCH(
     }
 
     if (Object.keys(updates).length > 0) {
-      await updateMasterStrategy(params.strategyId, updates)
+      await updateMasterStrategy(strategyId, updates)
     }
 
     if (body.setActive === true) {
-      await setActiveMasterStrategy(params.strategyId)
+      await setActiveMasterStrategy(strategyId)
     } else if (body.setActive === false) {
-      await updateMasterStrategy(params.strategyId, { status: 'inactive', isPrimary: false })
+      await updateMasterStrategy(strategyId, { status: 'inactive', isPrimary: false })
     }
 
-    const strategy = await getMasterStrategy(params.strategyId)
+    const strategy = await getMasterStrategy(strategyId)
 
     if (!strategy) {
       return NextResponse.json(
@@ -156,7 +158,7 @@ export async function PATCH(
 
       await updateCopyFactoryStrategy(
         {
-          strategyId: params.strategyId,
+          strategyId: strategyId,
           accountId: strategy.accountId,
           name: strategy.name,
           description: strategy.description,
@@ -191,12 +193,13 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { strategyId: string } }
+  context: { params: Promise<{ strategyId: string }> }
 ) {
   try {
     await requireAdmin(request)
 
-    const strategy = await getMasterStrategy(params.strategyId)
+    const { strategyId } = await context.params
+    const strategy = await getMasterStrategy(strategyId)
 
     if (!strategy) {
       return NextResponse.json(
@@ -208,11 +211,11 @@ export async function DELETE(
       )
     }
 
-    await deleteMasterStrategy(params.strategyId)
+    await deleteMasterStrategy(strategyId)
 
     if (strategy.isPrimary) {
       const remaining = (await listMasterStrategies()).filter(
-        (s) => s.strategyId !== params.strategyId
+        (s) => s.strategyId !== strategyId
       )
       if (remaining.length > 0) {
         await setActiveMasterStrategy(remaining[0].strategyId)

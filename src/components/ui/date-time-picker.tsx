@@ -54,7 +54,7 @@ const DateTimePicker = forwardRef<HTMLInputElement, DateTimePickerProps>(
           )}
           placeholder={placeholder}
         />
-        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+        <div className="absolute inset-y-0 left-0 flex items-center justify-center w-10 pointer-events-none z-10">
           {showTimeSelectOnly ? (
             <Clock className="h-4 w-4 text-muted-foreground" />
           ) : (

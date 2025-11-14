@@ -10,7 +10,8 @@ import { toast } from 'sonner'
 
 export default function TestPromotionLinksPage() {
   const { user } = useAuth()
-  const { notifications, unreadCount, playNotificationSound } = useUnifiedNotifications()
+  const { notifications } = useUnifiedNotifications()
+  const unreadCount = notifications.filter(n => !n.read).length
   const [loading, setLoading] = useState(false)
 
   const testInternalLinkNotification = async () => {
@@ -92,8 +93,8 @@ export default function TestPromotionLinksPage() {
   }
 
   const testSoundNotification = (type: string) => {
-    playNotificationSound(type)
-    toast.success(`Playing ${type} sound notification`)
+    // Sound notification functionality removed - use browser notifications instead
+    toast.success(`Sound notification test for ${type} (functionality removed)`)
   }
 
   return (

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
 import {
   getAccountClosedTrades,
   getAccountClosedTradesStats,
@@ -51,8 +52,8 @@ export default function ClosedTradesPage() {
   const [profitFilter, setProfitFilter] = useState<'profit' | 'loss' | 'all'>('all')
   const [closedByFilter, setClosedByFilter] = useState<'TP' | 'SL' | 'MANUAL' | 'all'>('all')
   const [limitFilter, setLimitFilter] = useState(50)
-  const [startDateFilter, setStartDateFilter] = useState<string>('')
-  const [endDateFilter, setEndDateFilter] = useState<string>('')
+  const [startDateFilter, setStartDateFilter] = useState<Date | null>(null)
+  const [endDateFilter, setEndDateFilter] = useState<Date | null>(null)
 
   // Load accounts and restore selection from localStorage
   useEffect(() => {
@@ -132,8 +133,8 @@ export default function ClosedTradesPage() {
         profitLoss: profitFilter,
         closedBy: closedByFilter,
         limitCount: limitFilter,
-        startDate: startDateFilter ? new Date(startDateFilter) : undefined,
-        endDate: endDateFilter ? new Date(endDateFilter + 'T23:59:59') : undefined // Include full day
+        startDate: startDateFilter ? startDateFilter : undefined,
+        endDate: endDateFilter ? new Date(endDateFilter.getFullYear(), endDateFilter.getMonth(), endDateFilter.getDate(), 23, 59, 59) : undefined // Include full day
       }
       
       // Load trades from all selected accounts
@@ -176,20 +177,31 @@ export default function ClosedTradesPage() {
       const totalTrades = uniqueTrades.length
       const profitableTrades = uniqueTrades.filter(t => t.profit > 0).length
       const winRate = totalTrades > 0 ? (profitableTrades / totalTrades) * 100 : 0
-      const totalProfit = uniqueTrades.reduce((sum, t) => sum + t.profit, 0)
-      const totalPips = uniqueTrades.reduce((sum, t) => sum + t.pips, 0)
-      const totalWins = uniqueTrades.filter(t => t.profit > 0).reduce((sum, t) => sum + t.profit, 0)
-      const totalLosses = Math.abs(uniqueTrades.filter(t => t.profit < 0).reduce((sum, t) => sum + t.profit, 0))
+      const totalProfit = uniqueTrades.reduce((sum, t) => sum + (t.profit || 0), 0)
+      const totalPips = uniqueTrades.reduce((sum, t) => sum + (t.pips || 0), 0)
+      const totalWins = uniqueTrades.filter(t => t.profit > 0).reduce((sum, t) => sum + (t.profit || 0), 0)
+      const totalLosses = Math.abs(uniqueTrades.filter(t => t.profit < 0).reduce((sum, t) => sum + (t.profit || 0), 0))
       const profitFactor = totalLosses > 0 ? totalWins / totalLosses : totalWins > 0 ? 999 : 0
       const avgRR = uniqueTrades
         .filter(t => t.riskReward !== null && t.riskReward !== undefined)
         .reduce((sum, t, _, arr) => sum + (t.riskReward || 0) / arr.length, 0)
-      const avgDuration = uniqueTrades.reduce((sum, t) => sum + t.duration, 0) / totalTrades
+      const avgDuration = uniqueTrades.reduce((sum, t) => sum + (t.duration || 0), 0) / totalTrades
 
+      const winningTrades = uniqueTrades.filter(t => t.profit > 0).length
+      const losingTrades = uniqueTrades.filter(t => t.profit < 0).length
+      const averageProfit = totalTrades > 0 ? totalProfit / totalTrades : 0
+      const bestTrade = uniqueTrades.length > 0 ? Math.max(...uniqueTrades.map(t => t.profit || 0)) : 0
+      const worstTrade = uniqueTrades.length > 0 ? Math.min(...uniqueTrades.map(t => t.profit || 0)) : 0
+      
       const combinedStats: TradeHistoryStats = {
         totalTrades,
+        winningTrades,
+        losingTrades,
         winRate,
         totalProfit,
+        averageProfit,
+        bestTrade,
+        worstTrade,
         totalPips,
         profitFactor,
         averageRR: avgRR,
@@ -468,24 +480,26 @@ export default function ClosedTradesPage() {
 
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium">Start Date:</label>
-            <Input
-              type="date"
+            <DateTimePicker
               value={startDateFilter}
-              onChange={(e) => setStartDateFilter(e.target.value)}
-              className="w-[150px]"
-              max={endDateFilter || new Date().toISOString().split('T')[0]}
+              onChange={(date) => setStartDateFilter(date)}
+              showTimeSelect={false}
+              dateFormat="MMM dd, yyyy"
+              maxDate={endDateFilter || new Date()}
+              placeholder="Select start date"
             />
           </div>
 
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium">End Date:</label>
-            <Input
-              type="date"
+            <DateTimePicker
               value={endDateFilter}
-              onChange={(e) => setEndDateFilter(e.target.value)}
-              className="w-[150px]"
-              min={startDateFilter}
-              max={new Date().toISOString().split('T')[0]}
+              onChange={(date) => setEndDateFilter(date)}
+              showTimeSelect={false}
+              dateFormat="MMM dd, yyyy"
+              minDate={startDateFilter || undefined}
+              maxDate={new Date()}
+              placeholder="Select end date"
             />
           </div>
 
@@ -495,8 +509,8 @@ export default function ClosedTradesPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  setStartDateFilter('')
-                  setEndDateFilter('')
+                  setStartDateFilter(null)
+                  setEndDateFilter(null)
                 }}
               >
                 Clear Dates

@@ -99,7 +99,10 @@ export async function GET(request: NextRequest) {
           ...data,
           createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
           lastRebalancedAt: data.lastRebalancedAt?.toDate ? data.lastRebalancedAt.toDate() : undefined,
-          rebalancingHistory: data.rebalancingHistory || []
+          rebalancingHistory: data.rebalancingHistory || [],
+          originalRiskMultiplier: data.originalRiskMultiplier || data.riskMultiplier || 1,
+          riskMultiplier: data.riskMultiplier || 1,
+          rebalancingRules: data.rebalancingRules || undefined
         }
 
         const rebalanceCheck = shouldRebalance(account as any, accountStats)

@@ -151,7 +151,7 @@ export function PerformanceCalendarTab() {
         Date: day.date instanceof Date ? day.date.toLocaleDateString() : day.date,
         Profit: day.profit,
         Trades: day.trades
-      }))
+      })) as any[]
 
     exportToCSV(csvData, `performance-calendar-${selectedYear}-${selectedMonth + 1}.csv`)
   }

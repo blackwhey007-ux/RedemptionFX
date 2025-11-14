@@ -1022,7 +1022,7 @@ function TradingJournalPageContent() {
         
         console.log('Trading Journal: Creating new trade:', tradeData)
         
-        if (!tradeData.pair || !tradeData.entryPrice || !tradeData.exitPrice || !tradeData.profileId || !tradeData.userId) {
+        if (!tradeData.pair || !tradeData.entryPrice || !tradeData.exitPrice || !tradeData.userId) {
           console.error('Trading Journal: Missing required fields in trade data:', tradeData)
           alert('Error: Missing required trade information. Please try again.')
           return

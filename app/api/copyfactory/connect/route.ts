@@ -34,9 +34,12 @@ const ConnectSchema = z.object({
  * Connect user's MT account and subscribe to master strategy
  */
 export async function POST(request: NextRequest) {
+  let user: Awaited<ReturnType<typeof requireAuth>> | null = null
+  let data: z.infer<typeof ConnectSchema> | null = null
+  
   try {
     // Require authentication
-    const user = await requireAuth(request)
+    user = await requireAuth(request)
 
     // Parse and validate request body
     const body = await request.json()
@@ -53,7 +56,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const data = validation.data
+    data = validation.data
 
     const masterStrategy = await getMasterStrategy(data.strategyId)
 
@@ -214,12 +217,15 @@ export async function POST(request: NextRequest) {
     try {
       // Try to get accountId from error context or check if account was created
       // This is a best-effort attempt - if accountId is not available, skip tracking
-      const accounts = await listUserCopyTradingAccounts(user.uid)
-      const existingAccount = accounts.find((acc) => acc.login === data.login && acc.server === data.server)
-      if (existingAccount?.accountId) {
-        await trackError(user.uid, existingAccount.accountId, message).catch((trackError) => {
-          console.warn('[ConnectEndpoint] Failed to track error:', trackError)
-        })
+      // Note: user might not be available in catch block, so check first
+      if (user?.uid && data?.login && data?.server) {
+        const accounts = await listUserCopyTradingAccounts(user.uid)
+        const existingAccount = accounts.find((acc) => acc.login === data.login && acc.server === data.server)
+        if (existingAccount?.accountId) {
+          await trackError(user.uid, existingAccount.accountId, message).catch((trackError) => {
+            console.warn('[ConnectEndpoint] Failed to track error:', trackError)
+          })
+        }
       }
     } catch (trackError) {
       // Silently fail - error tracking is non-critical

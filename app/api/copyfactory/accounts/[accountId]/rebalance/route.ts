@@ -107,16 +107,14 @@ export async function POST(
       reason: rebalanceCheck.reason
     })
   } catch (error) {
+    const authError = handleAuthError(error)
     console.error('[RebalanceAPI] Error:', error)
-    if (error instanceof Error && error.message.includes('Unauthorized')) {
-      return handleAuthError()
-    }
     return NextResponse.json(
       {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to rebalance account'
       },
-      { status: 500 }
+      { status: authError.status }
     )
   }
 }
@@ -199,16 +197,14 @@ export async function GET(
       }
     })
   } catch (error) {
+    const authError = handleAuthError(error)
     console.error('[RebalanceAPI] Error:', error)
-    if (error instanceof Error && error.message.includes('Unauthorized')) {
-      return handleAuthError()
-    }
     return NextResponse.json(
       {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to get rebalancing data'
       },
-      { status: 500 }
+      { status: authError.status }
     )
   }
 }

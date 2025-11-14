@@ -2089,10 +2089,7 @@ export default function VipResultsPage() {
                       }
                     </p>
                     <p className="text-sm text-muted-foreground mt-2">
-                      {dataSource === 'signals' 
-                        ? 'Estimated signal lifetime'
-                        : 'From open to close'
-                      }
+                      From open to close
                     </p>
                   </div>
                   <div className="pt-4 border-t border-border">

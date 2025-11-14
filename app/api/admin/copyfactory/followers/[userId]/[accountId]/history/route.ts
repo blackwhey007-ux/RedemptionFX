@@ -8,12 +8,12 @@ import { getFollowerTradeHistory, getCachedTradeHistory } from '@/lib/copyTradin
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string; accountId: string } }
+  context: { params: Promise<{ userId: string; accountId: string }> }
 ) {
   try {
     await requireAdmin(request)
 
-    const { userId, accountId } = params
+    const { userId, accountId } = await context.params
     const { searchParams } = new URL(request.url)
     
     // Get optional query parameters

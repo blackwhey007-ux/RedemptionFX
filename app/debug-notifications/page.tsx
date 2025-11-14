@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/badge'
 
 export default function DebugNotificationsPage() {
   const { user } = useAuth()
-  const { notifications, unreadCount, loading, addNotification } = useUnifiedNotifications()
+  const { notifications, stats, loading } = useUnifiedNotifications()
+  const unreadCount = notifications.filter(n => !n.read).length
   const [debugInfo, setDebugInfo] = useState<any>({})
 
   useEffect(() => {
@@ -30,16 +31,11 @@ export default function DebugNotificationsPage() {
     if (!user) return
     
     try {
-      await addNotification({
-        userId: user.uid,
-        type: 'system',
-        title: 'Direct Test Notification',
-        message: 'This notification was created directly through the context',
-        data: {
-          soundType: 'info',
-          actionUrl: '/dashboard'
-        }
-      })
+      await UserNotificationService.createSystemNotification(
+        user.uid,
+        'Direct Test Notification',
+        'This notification was created directly through the service'
+      )
       console.log('Direct notification added successfully')
     } catch (error) {
       console.error('Error adding direct notification:', error)
