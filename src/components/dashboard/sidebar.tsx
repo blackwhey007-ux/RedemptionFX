@@ -269,15 +269,38 @@ export function Sidebar({ user }: SidebarProps) {
       {/* Sidebar */}
       <div className={cn(
         "fixed inset-y-0 left-0 z-40 bg-gradient-to-b from-white/95 to-slate-50/95 dark:from-black/95 dark:to-black/95 backdrop-blur-xl border-r border-gray-200/50 dark:border-gray-800/50 transform transition-all duration-300 ease-out shadow-2xl",
-        isCollapsed ? "w-20" : "w-64",
+        // Mobile: always full width when open
+        "w-64",
+        // Desktop: collapse width based on state
+        isCollapsed ? "md:w-20" : "md:w-64",
         // Desktop: always visible
         "md:translate-x-0",
         // Mobile: overlay behavior
         isOpen ? "max-md:translate-x-0" : "max-md:-translate-x-full"
       )}>
         <div className="flex flex-col h-full">
-          {/* Collapse Toggle Button - Always Visible */}
+          {/* Collapse Toggle Button - Desktop only, Mobile shows close button */}
           <div className="p-3 border-b border-gray-200/50 dark:border-gray-800/50">
+            {/* Mobile: Close button */}
+            <button
+              onClick={() => setIsOpen(false)}
+              className={cn(
+                "w-full p-3 rounded-lg transition-all duration-300",
+                "hover:bg-gray-100 dark:hover:bg-gray-800/50",
+                "flex items-center justify-center gap-2",
+                "active:scale-95 touch-manipulation",
+                "group md:hidden"
+              )}
+              aria-label="Close sidebar"
+              title="Close sidebar"
+            >
+              <X className="h-5 w-5 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors" />
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors">
+                Close
+              </span>
+            </button>
+            
+            {/* Desktop: Collapse toggle button */}
             <button
               onClick={toggleCollapsed}
               className={cn(
@@ -285,7 +308,7 @@ export function Sidebar({ user }: SidebarProps) {
                 "hover:bg-gray-100 dark:hover:bg-gray-800/50",
                 "flex items-center justify-center gap-2",
                 "active:scale-95 touch-manipulation",
-                "group"
+                "group hidden md:flex"
               )}
               aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -312,14 +335,20 @@ export function Sidebar({ user }: SidebarProps) {
                   {item.subcategories && item.subcategories.length > 0 ? (
                     <div 
                       className={cn(
-                        "flex items-center px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 border border-transparent hover:border-gray-200 dark:hover:border-gray-700/50 transition-all duration-300 cursor-pointer group",
-                        isCollapsed ? "justify-center" : "justify-between"
+                        "flex items-center px-3 py-3 min-h-[44px] rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 border border-transparent hover:border-gray-200 dark:hover:border-gray-700/50 transition-all duration-300 cursor-pointer group touch-manipulation",
+                        isCollapsed ? "justify-center md:justify-center" : "justify-between"
                       )}
                       onClick={() => {
-                        if (isCollapsed) {
-                          toggleCollapsed()
-                        } else {
+                        // On mobile, always expand subcategories
+                        if (typeof window !== 'undefined' && window.innerWidth < 768) {
                           toggleExpanded(item.id)
+                        } else {
+                          // On desktop, handle collapse state
+                          if (isCollapsed) {
+                            toggleCollapsed()
+                          } else {
+                            toggleExpanded(item.id)
+                          }
                         }
                       }}
                       title={isCollapsed ? `${item.title} - Click to expand sidebar` : undefined}
@@ -346,19 +375,25 @@ export function Sidebar({ user }: SidebarProps) {
                       )}
                     </div>
                   ) : (
-                    <div
+                    <Link 
+                      href={item.href}
                       onClick={() => {
-                        if (isCollapsed) {
-                          toggleCollapsed()
+                        // On mobile, close sidebar when navigating
+                        if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                          setIsOpen(false)
+                        } else {
+                          // On desktop, expand if collapsed
+                          if (isCollapsed) {
+                            toggleCollapsed()
+                          }
                         }
                       }}
                     >
-                      <Link href={item.href}>
-                        <div className={cn(
-                          "flex items-center px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 border border-transparent hover:border-gray-200 dark:hover:border-gray-700/50 transition-all duration-300 cursor-pointer group",
-                          isCollapsed ? "justify-center" : "justify-between"
-                        )}
-                        title={isCollapsed ? `${item.title} - Click to expand sidebar` : undefined}>
+                      <div className={cn(
+                        "flex items-center px-3 py-3 min-h-[44px] rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 border border-transparent hover:border-gray-200 dark:hover:border-gray-700/50 transition-all duration-300 cursor-pointer group touch-manipulation",
+                        isCollapsed ? "justify-center md:justify-center" : "justify-between"
+                      )}
+                      title={isCollapsed ? `${item.title} - Click to expand sidebar` : undefined}>
                         <div className={cn("flex items-center", isCollapsed ? "justify-center" : "space-x-3")}>
                           <item.icon className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100" />
                           {!isCollapsed && (
@@ -379,7 +414,6 @@ export function Sidebar({ user }: SidebarProps) {
                         )}
                       </div>
                     </Link>
-                    </div>
                   )}
 
                   {/* Subcategories */}
@@ -389,8 +423,14 @@ export function Sidebar({ user }: SidebarProps) {
                         <div key={sub.id} className="space-y-1">
                           <Link
                             href={sub.href}
+                            onClick={() => {
+                              // On mobile, close sidebar when navigating to subcategory
+                              if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                                setIsOpen(false)
+                              }
+                            }}
                             className={cn(
-                              "flex items-center space-x-3 px-3 py-2 rounded-lg transition-all duration-300 group",
+                              "flex items-center space-x-3 px-3 py-3 min-h-[44px] rounded-lg transition-all duration-300 group touch-manipulation",
                               pathname === sub.href
                                 ? "bg-gray-100 dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700"
                                 : "hover:bg-slate-50 dark:hover:bg-slate-800/50 border border-transparent hover:border-slate-200 dark:hover:border-slate-700/50"

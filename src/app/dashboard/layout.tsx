@@ -8,9 +8,12 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { ProfileProvider } from '@/contexts/ProfileContext'
 import { UnifiedNotificationProvider } from '@/contexts/UnifiedNotificationContext'
 import { NotificationPreferencesProvider } from '@/contexts/NotificationPreferencesContext'
+import { SidebarProvider, useSidebar } from '@/contexts/SidebarContext'
+import { cn } from '@/lib/utils'
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
+  const { isCollapsed } = useSidebar()
 
   if (!user) {
     return (
@@ -28,7 +31,11 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       <UnifiedNotificationProvider>
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-black dark:via-black dark:to-black transition-all duration-500">
           <Sidebar user={user} />
-          <div className="md:ml-64 min-h-screen flex flex-col">
+          <div className={cn(
+            "min-h-screen flex flex-col transition-all duration-300",
+            "ml-0", // No margin on mobile
+            isCollapsed ? "md:ml-20" : "md:ml-64" // Desktop margin based on collapsed state
+          )}>
             <Header user={user} />
             <main className="flex-1 p-4 md:p-6">
               {children}
@@ -50,9 +57,11 @@ export default function DashboardLayout({
       <AuthProvider>
         <AuthWrapper>
           <ProfileProvider>
-            <DashboardContent>
-              {children}
-            </DashboardContent>
+            <SidebarProvider>
+              <DashboardContent>
+                {children}
+              </DashboardContent>
+            </SidebarProvider>
           </ProfileProvider>
         </AuthWrapper>
       </AuthProvider>
