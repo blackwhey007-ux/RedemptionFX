@@ -1,9 +1,9 @@
 /**
  * CopyFactory Client
  * Orchestrates MetaApi SDK and CopyFactory SDK operations
+ * Uses dynamic imports to avoid serverless filesystem issues
  */
 
-import MetaApi, { CopyFactory as CopyFactoryClient } from 'metaapi.cloud-sdk'
 import type { SymbolMappingPair } from './copyTradingRepo'
 
 // Validate environment variables
@@ -15,6 +15,10 @@ if (!METAAPI_TOKEN) {
 
 async function initializeMetaApi(token: string) {
   try {
+    // Dynamic import to avoid filesystem issues in serverless
+    const MetaApiModule = await import('metaapi.cloud-sdk')
+    const MetaApi = MetaApiModule.default
+    
     // Import serverless-safe MetaAPI configuration helper
     const { createMetaApiInstanceSafely } = await import('./metaapiConfig')
     return await createMetaApiInstanceSafely(MetaApi, token, {
@@ -26,9 +30,11 @@ async function initializeMetaApi(token: string) {
   }
 }
 
-function initializeCopyFactory(token: string) {
+async function initializeCopyFactory(token: string) {
   try {
-    return new CopyFactoryClient(token)
+    // Dynamic import to avoid filesystem issues in serverless
+    const { CopyFactory } = await import('metaapi.cloud-sdk')
+    return new CopyFactory(token)
   } catch (error) {
     console.error('[CopyFactory] Failed to initialize CopyFactory SDK:', error)
     throw new Error('Unable to initialize CopyFactory SDK with provided token.')
@@ -38,7 +44,7 @@ function initializeCopyFactory(token: string) {
 // Initialize default SDK instances using environment token
 // Lazy initialization pattern - will be initialized on first use
 let metaApiSdk: Promise<any> | null = null
-const copyFactorySdk = initializeCopyFactory(METAAPI_TOKEN)
+let copyFactorySdk: Promise<any> | null = null
 
 async function getMetaApiClients(customToken?: string) {
   const token =
@@ -50,17 +56,21 @@ async function getMetaApiClients(customToken?: string) {
     if (!metaApiSdk) {
       metaApiSdk = initializeMetaApi(METAAPI_TOKEN)
     }
+    if (!copyFactorySdk) {
+      copyFactorySdk = initializeCopyFactory(METAAPI_TOKEN)
+    }
     const metaApi = await metaApiSdk
+    const copyFactory = await copyFactorySdk
     return {
       metaApi,
-      copyFactory: copyFactorySdk,
-      configurationApi: copyFactorySdk.configurationApi
+      copyFactory,
+      configurationApi: copyFactory.configurationApi
     }
   }
 
   console.log('[CopyFactory] Using custom token. Token length:', token.length, 'Parts:', token.split('.').length)
   const metaApiClient = await initializeMetaApi(token)
-  const copyFactoryClient = initializeCopyFactory(token)
+  const copyFactoryClient = await initializeCopyFactory(token)
 
   return {
     metaApi: metaApiClient,

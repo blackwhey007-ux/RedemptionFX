@@ -2,10 +2,9 @@
  * Copy Trading Streaming Service
  * Streams trades from master account using MetaAPI SDK
  * Archives closed trades to Firestore with pips calculation
+ * Uses dynamic imports to avoid serverless filesystem issues
  */
 
-import MetaApi from 'metaapi.cloud-sdk'
-import { SynchronizationListener } from 'metaapi.cloud-sdk'
 import { getMasterStrategy } from './copyTradingRepo'
 import { decrypt } from './crypto'
 import { archiveClosedTrade } from './mt5TradeHistoryService'
@@ -66,6 +65,10 @@ export async function startCopyTradingStream(
 
     console.log(`[CopyTradingStream] Starting stream for account ${accountId}`)
 
+    // Dynamic import to avoid filesystem issues in serverless
+    const MetaApiModule = await import('metaapi.cloud-sdk')
+    const MetaApi = MetaApiModule.default
+
     // Import serverless-safe MetaAPI configuration helper
     const { createMetaApiInstanceSafely } = await import('./metaapiConfig')
 
@@ -88,8 +91,30 @@ export async function startCopyTradingStream(
     
     const connection = account.getStreamingConnection()
 
+    // Import SynchronizationListener dynamically
+    const { SynchronizationListener } = await import('metaapi.cloud-sdk')
+    
+    // Create a wrapper that extends SynchronizationListener
+    class SynchronizedPositionListener extends SynchronizationListener {
+      private positionListener: CopyTradingPositionListener
+      
+      constructor(positionListener: CopyTradingPositionListener) {
+        super()
+        this.positionListener = positionListener
+      }
+      
+      async onPositionUpdated(instanceIndex: string, position: any): Promise<void> {
+        return this.positionListener.onPositionUpdated(instanceIndex, position)
+      }
+      
+      async onPositionClosed(instanceIndex: string, position: any): Promise<void> {
+        return this.positionListener.onPositionClosed(instanceIndex, position)
+      }
+    }
+    
     // Create position listener
-    const listener = new CopyTradingPositionListener(accountId, strategyId || masterStrategy.strategyId)
+    const positionListener = new CopyTradingPositionListener(accountId, strategyId || masterStrategy.strategyId)
+    const listener = new SynchronizedPositionListener(positionListener)
 
     // Add listener
     connection.addSynchronizationListener(listener)
@@ -107,7 +132,7 @@ export async function startCopyTradingStream(
       accountId,
       strategyId: strategyId || masterStrategy.strategyId,
       connection,
-      listener,
+      listener: positionListener,
       isActive: true
     })
 
@@ -161,13 +186,13 @@ export function getStreamingStatus(accountId: string): { isActive: boolean } {
 /**
  * Position listener for copy trading
  */
-class CopyTradingPositionListener extends SynchronizationListener {
+// Note: SynchronizationListener will be imported dynamically where needed
+class CopyTradingPositionListener {
   private accountId: string
   private strategyId: string
   private seenPositions = new Map<string, any>()
 
   constructor(accountId: string, strategyId: string) {
-    super()
     this.accountId = accountId
     this.strategyId = strategyId
   }
