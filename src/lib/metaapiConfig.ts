@@ -4,6 +4,22 @@
  * SERVER-ONLY: This module should only be used server-side
  */
 
+// Set environment variable early to prevent MetaAPI SDK from using default path
+if (typeof window === 'undefined') {
+  const isServerless = 
+    process.env.VERCEL || 
+    process.env.VERCEL_ENV || 
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.FUNCTION_TARGET ||
+    process.env.K_SERVICE ||
+    process.env.FUNCTIONS_WORKER_RUNTIME
+  
+  if (isServerless && !process.env.METAAPI_STORAGE_PATH) {
+    // Set storage path before MetaAPI SDK tries to initialize
+    process.env.METAAPI_STORAGE_PATH = '/tmp/.metaapi'
+  }
+}
+
 /**
  * Detects if we're running in a serverless environment
  */
