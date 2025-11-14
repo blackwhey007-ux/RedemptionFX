@@ -62,13 +62,7 @@ class EconomicCalendarNotificationServiceImpl implements EconomicCalendarNotific
         message,
         data: {
           eventId: event.id,
-          eventName: event.event,
-          country: event.country,
-          impact: event.impact,
-          forecast: event.forecast,
-          previous: event.previous,
-          eventTime: event.date.toISOString(),
-          minutesUntil
+          actionUrl: `/economic-calendar/${event.id}`
         },
         priority: event.impact === 'high' ? 'high' : 'normal'
       })
