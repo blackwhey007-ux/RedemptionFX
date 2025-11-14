@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { importVipTrades, getVipImportHistory } from '@/lib/csvImportService'
 
+// Force dynamic rendering for serverless functions
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60 // Allow up to 60 seconds for CSV imports
+
 export async function POST(request: NextRequest) {
   try {
     // For now, skip authentication check to test the import functionality

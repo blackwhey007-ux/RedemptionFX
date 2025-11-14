@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stopStreaming, getStreamingStatus } from '@/lib/metaapiStreamingService'
 
+// Force dynamic rendering for serverless functions
+export const dynamic = 'force-dynamic'
+export const maxDuration = 30 // Allow up to 30 seconds for streaming cleanup
+
 /**
  * POST - Stop streaming
  */

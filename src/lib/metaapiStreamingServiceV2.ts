@@ -498,8 +498,13 @@ export async function initializeStreaming(): Promise<{ success: boolean; error?:
 
     console.log('✅ MetaAPI SDK loaded')
 
-    // Create MetaAPI instance
-    const api = new MetaApi(token)
+    // Import serverless-safe MetaAPI configuration helper
+    const { createMetaApiInstanceSafely } = await import('./metaapiConfig')
+
+    // Create MetaAPI instance with serverless-compatible storage path
+    const api = await createMetaApiInstanceSafely(MetaApi, token, {
+      application: 'redemptionfx-streaming'
+    })
 
     // Get account
     const account = await api.metatraderAccountApi.getAccount(accountId)

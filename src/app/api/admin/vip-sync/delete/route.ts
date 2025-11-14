@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/firestore'
 import { collection, getDocs, deleteDoc, doc, query, where } from 'firebase/firestore'
 
+// Force dynamic rendering for serverless functions
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60 // Allow up to 60 seconds for bulk deletions
+
 const VIP_PROFILE_ID = 'vip-showcase'
 
 export async function DELETE(request: NextRequest) {

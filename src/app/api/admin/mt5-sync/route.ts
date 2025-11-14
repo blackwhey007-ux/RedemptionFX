@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { syncVipTrades, getVipSyncLogs } from '@/lib/mt5VipService'
 import { getCurrentUser, isAdmin } from '@/lib/firebaseAuth'
 
+// Force dynamic rendering for serverless functions
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60 // Allow up to 60 seconds for sync operations
+
 export async function POST(request: NextRequest) {
   try {
     // Check if user is admin

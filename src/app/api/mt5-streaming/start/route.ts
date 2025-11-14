@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { initializeStreaming, getStreamingStatus } from '@/lib/metaapiStreamingService'
 
+// Force dynamic rendering for serverless functions
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60 // Allow up to 60 seconds for streaming initialization
+
 /**
  * GET - Check streaming status
  */

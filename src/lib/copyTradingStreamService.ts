@@ -66,8 +66,13 @@ export async function startCopyTradingStream(
 
     console.log(`[CopyTradingStream] Starting stream for account ${accountId}`)
 
-    // Initialize MetaAPI
-    const metaApi = new MetaApi(token, { application: 'redemptionfx' })
+    // Import serverless-safe MetaAPI configuration helper
+    const { createMetaApiInstanceSafely } = await import('./metaapiConfig')
+
+    // Initialize MetaAPI with serverless-compatible storage path
+    const metaApi = await createMetaApiInstanceSafely(MetaApi, token, {
+      application: 'redemptionfx'
+    })
     const account = await metaApi.metatraderAccountApi.getAccount(accountId)
     
     // Deploy account if needed

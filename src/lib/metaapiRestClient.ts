@@ -639,8 +639,13 @@ export async function createMetaAPIAccount(
       throw new Error('MetaAPI SDK not available. Please ensure metaapi.cloud-sdk is installed.')
     }
 
-    // Create MetaAPI instance
-    const api = new MetaApi(token)
+    // Import serverless-safe MetaAPI configuration helper
+    const { createMetaApiInstanceSafely } = await import('./metaapiConfig')
+
+    // Create MetaAPI instance with serverless-compatible storage path
+    const api = await createMetaApiInstanceSafely(MetaApi, token, {
+      application: 'redemptionfx-rest'
+    })
 
     // Create account using SDK's createAccount method
     // SDK expects platform as lowercase 'mt4' or 'mt5'
@@ -1801,8 +1806,13 @@ export async function getAccountInfoViaSDK(
       MetaApi = (MetaApiModule as any).MetaApi || MetaApiModule
     }
     
-    // Create SDK instance
-    const metaApi = new MetaApi(token)
+    // Import serverless-safe MetaAPI configuration helper
+    const { createMetaApiInstanceSafely } = await import('./metaapiConfig')
+
+    // Create SDK instance with serverless-compatible storage path
+    const metaApi = await createMetaApiInstanceSafely(MetaApi, token, {
+      application: 'redemptionfx-rest'
+    })
     
     // Get account via SDK
     const account = await metaApi.metatraderAccountApi.getAccount(accountId)

@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getVipStats } from '@/lib/csvImportService'
 
+// Force dynamic rendering for serverless functions
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)

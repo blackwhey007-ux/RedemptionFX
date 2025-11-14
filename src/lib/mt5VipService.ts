@@ -26,8 +26,15 @@ export async function getMetaApiInstance(token?: string): Promise<any> {
       const MetaApiModule = await import('metaapi.cloud-sdk')
       const MetaApiClass = MetaApiModule.default || (MetaApiModule as any).MetaApi || MetaApiModule
       
-      // Create MetaAPI instance - SDK may work if we avoid browser-specific methods
-      const metaApiInstance = typeof MetaApiClass === 'function' ? new (MetaApiClass as any)(tokenToUse) : MetaApiClass
+      // Import serverless-safe MetaAPI configuration helper
+      const { createMetaApiInstanceSafely } = await import('./metaapiConfig')
+      
+      // Create MetaAPI instance with serverless-compatible storage path
+      const metaApiInstance = typeof MetaApiClass === 'function' 
+        ? await createMetaApiInstanceSafely(MetaApiClass, tokenToUse, {
+            application: 'redemptionfx-vip'
+          })
+        : MetaApiClass
       
       // Use the HTTP API wrapper which should work server-side
       const httpApi = metaApiInstance.httpClient || metaApiInstance
@@ -136,7 +143,11 @@ export async function getMetaApiInstance(token?: string): Promise<any> {
   }
   
   if (!metaapi || metaapi.token !== tokenToUse) {
-    metaapi = new MetaApi(tokenToUse)
+    // Import serverless-safe MetaAPI configuration helper
+    const { createMetaApiInstanceSafely } = await import('./metaapiConfig')
+    metaapi = await createMetaApiInstanceSafely(MetaApi, tokenToUse, {
+      application: 'redemptionfx-vip'
+    })
     metaapi.token = tokenToUse
   }
   

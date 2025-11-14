@@ -3,6 +3,10 @@ import { getMT5Settings } from '@/lib/mt5SettingsService'
 import { getPositions } from '@/lib/metaapiRestClient'
 import { getStreamingStatus } from '@/lib/metaapiStreamingServiceV2'
 
+// Force dynamic rendering for serverless functions
+export const dynamic = 'force-dynamic'
+export const maxDuration = 30 // Allow up to 30 seconds for MetaAPI calls
+
 /**
  * API endpoint to get current open positions from MT5
  * Uses existing MetaAPI infrastructure

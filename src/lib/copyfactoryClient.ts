@@ -13,9 +13,13 @@ if (!METAAPI_TOKEN) {
   throw new Error('METAAPI_TOKEN environment variable is required')
 }
 
-function initializeMetaApi(token: string) {
+async function initializeMetaApi(token: string) {
   try {
-    return new MetaApi(token)
+    // Import serverless-safe MetaAPI configuration helper
+    const { createMetaApiInstanceSafely } = await import('./metaapiConfig')
+    return await createMetaApiInstanceSafely(MetaApi, token, {
+      application: 'redemptionfx-copyfactory'
+    })
   } catch (error) {
     console.error('[CopyFactory] Failed to initialize MetaApi SDK:', error)
     throw new Error('Unable to initialize MetaApi SDK with provided token.')
@@ -32,24 +36,30 @@ function initializeCopyFactory(token: string) {
 }
 
 // Initialize default SDK instances using environment token
-const metaApiSdk = initializeMetaApi(METAAPI_TOKEN)
+// Lazy initialization pattern - will be initialized on first use
+let metaApiSdk: Promise<any> | null = null
 const copyFactorySdk = initializeCopyFactory(METAAPI_TOKEN)
 
-function getMetaApiClients(customToken?: string) {
+async function getMetaApiClients(customToken?: string) {
   const token =
     typeof customToken === 'string' && customToken.trim().length > 0 ? customToken.trim() : undefined
 
   if (!token) {
     console.log('[CopyFactory] Using default token. Token length:', METAAPI_TOKEN?.length, 'Parts:', METAAPI_TOKEN?.split('.').length)
+    // Lazy initialize if not already done
+    if (!metaApiSdk) {
+      metaApiSdk = initializeMetaApi(METAAPI_TOKEN)
+    }
+    const metaApi = await metaApiSdk
     return {
-      metaApi: metaApiSdk,
+      metaApi,
       copyFactory: copyFactorySdk,
       configurationApi: copyFactorySdk.configurationApi
     }
   }
 
   console.log('[CopyFactory] Using custom token. Token length:', token.length, 'Parts:', token.split('.').length)
-  const metaApiClient = initializeMetaApi(token)
+  const metaApiClient = await initializeMetaApi(token)
   const copyFactoryClient = initializeCopyFactory(token)
 
   return {
@@ -115,7 +125,7 @@ export async function createSubscriberAccount(
   try {
     console.log(`[CopyFactory] Creating subscriber account: ${params.name}`)
 
-    const { metaApi } = getMetaApiClients(options?.token)
+    const { metaApi } = await getMetaApiClients(options?.token)
 
     const account = await metaApi.metatraderAccountApi.createAccount({
       name: params.name,
@@ -163,7 +173,7 @@ export async function subscribeToStrategy(
     )
 
     // Get the subscriber configuration API
-    const { configurationApi } = getMetaApiClients(options?.token)
+    const { configurationApi } = await getMetaApiClients(options?.token)
 
     const subscription: Record<string, any> = {
       strategyId: params.strategyId,
@@ -229,7 +239,7 @@ export async function createMasterStrategy(
   try {
     console.log(`[CopyFactory] Creating/updating master strategy: ${params.name}`)
 
-    const { configurationApi } = getMetaApiClients(options?.token)
+    const { configurationApi } = await getMetaApiClients(options?.token)
 
     // Check if strategy already exists
     const strategies =
@@ -311,7 +321,7 @@ export async function updateCopyFactoryStrategy(
   options?: { token?: string }
 ): Promise<void> {
   try {
-    const { configurationApi } = getMetaApiClients(options?.token)
+    const { configurationApi } = await getMetaApiClients(options?.token)
 
     const payload: Record<string, any> = {
       accountId: params.accountId
@@ -355,7 +365,7 @@ export async function getStrategies(options?: { token?: string }): Promise<
   try {
     console.log('[CopyFactory] Fetching available strategies')
 
-    const { configurationApi } = getMetaApiClients(options?.token)
+    const { configurationApi } = await getMetaApiClients(options?.token)
     const strategies =
       (await configurationApi.getStrategiesWithInfiniteScrollPagination({
         limit: 1000
@@ -388,7 +398,7 @@ export async function getSubscriberStatus(subscriberAccountId: string): Promise<
   try {
     console.log(`[CopyFactory] Fetching subscriber status for ${subscriberAccountId}`)
 
-    const { configurationApi } = getMetaApiClients()
+    const { configurationApi } = await getMetaApiClients()
     const subscriber = await configurationApi.getSubscriber(subscriberAccountId)
 
     return {
@@ -433,7 +443,7 @@ export async function unsubscribeFromStrategy(
       `[CopyFactory] Unsubscribing account ${subscriberAccountId} from strategy ${strategyId}`
     )
 
-    const { configurationApi } = getMetaApiClients(options?.token)
+    const { configurationApi } = await getMetaApiClients(options?.token)
     const subscriber = await configurationApi.getSubscriber(subscriberAccountId)
 
     // Remove the specific subscription
@@ -462,7 +472,7 @@ export async function deleteSubscriberAccount(accountId: string): Promise<void> 
   try {
     console.log(`[CopyFactory] Deleting subscriber account ${accountId}`)
 
-    const { metaApi } = getMetaApiClients()
+    const { metaApi } = await getMetaApiClients()
     const account = await metaApi.metatraderAccountApi.getAccount(accountId)
 
     // Undeploy first
@@ -486,7 +496,7 @@ export async function deleteSubscriberAccount(accountId: string): Promise<void> 
 export async function removeSubscriber(subscriberAccountId: string): Promise<void> {
   try {
     console.log(`[CopyFactory] Removing subscriber ${subscriberAccountId}`)
-    const { configurationApi } = getMetaApiClients()
+    const { configurationApi } = await getMetaApiClients()
     await configurationApi.removeSubscriber(subscriberAccountId)
     console.log(`[CopyFactory] Subscriber ${subscriberAccountId} removed`)
   } catch (error) {
@@ -517,7 +527,7 @@ export async function getFollowerAccountInfo(
   try {
     console.log(`[CopyFactory] Fetching account info for ${accountId}`)
 
-    const { metaApi } = getMetaApiClients(token)
+    const { metaApi } = await getMetaApiClients(token)
     const account = await metaApi.metatraderAccountApi.getAccount(accountId)
 
     // Get RPC connection
@@ -569,7 +579,7 @@ export async function getFollowerPositions(
   commission: number
 }>> {
   try {
-    const { metaApi } = getMetaApiClients(token)
+    const { metaApi } = await getMetaApiClients(token)
     const account = await metaApi.metatraderAccountApi.getAccount(accountId)
 
     const connection = account.getRPCConnection()
