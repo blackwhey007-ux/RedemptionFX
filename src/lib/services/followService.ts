@@ -19,7 +19,8 @@ import {
   Timestamp,
   arrayUnion,
   arrayRemove,
-  increment
+  increment,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { UserRelationship, RelationshipType, FollowStats } from '@/types/community';
@@ -540,7 +541,7 @@ async function updateFollowCounts(
   action: 'follow' | 'unfollow'
 ): Promise<void> {
   try {
-    const batch = db.batch();
+    const batch = writeBatch(db);
 
     // Update follower's following count
     const followerRef = doc(db, USERS_COLLECTION, followerId);
