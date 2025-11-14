@@ -93,8 +93,8 @@ export default function TestPromotionLinksPage() {
   }
 
   const testSoundNotification = (type: string) => {
-    playNotificationSound(type)
-    toast.success(`Playing ${type} sound notification`)
+    // Sound notification functionality removed - use browser notifications instead
+    toast.success(`Sound notification test for ${type} (functionality removed)`)
   }
 
   return (
