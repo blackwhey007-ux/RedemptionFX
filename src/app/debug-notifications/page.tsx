@@ -6,6 +6,5 @@ import { NotificationContent } from './NotificationContent'
 export const dynamic = 'force-dynamic'
 
 export default function DebugNotificationsPage() {
-  // Use a client component that safely uses hooks within the provider context
   return <NotificationContent />
 }
