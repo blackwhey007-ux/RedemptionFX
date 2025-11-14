@@ -542,19 +542,48 @@ export function UnifiedNotificationProvider({ children }: UnifiedNotificationPro
         
         // Update stats based on Firestore data
         const unreadCount = newNotifications.filter(n => !n.read).length
-        const newStats = {
+        const now = new Date()
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        
+        // Count by type
+        const byType: Record<string, number> = {}
+        newNotifications.forEach(n => {
+          byType[n.type] = (byType[n.type] || 0) + 1
+        })
+        
+        // Count recent activity
+        const notificationsToday = newNotifications.filter(n => {
+          const createdAt = n.createdAt?.toDate ? n.createdAt.toDate() : new Date(n.createdAt)
+          return createdAt >= today
+        }).length
+        
+        const notificationsThisWeek = newNotifications.filter(n => {
+          const createdAt = n.createdAt?.toDate ? n.createdAt.toDate() : new Date(n.createdAt)
+          return createdAt >= weekAgo
+        }).length
+        
+        const latestNotification = newNotifications.length > 0 
+          ? (newNotifications[0].createdAt?.toDate ? newNotifications[0].createdAt.toDate() : new Date(newNotifications[0].createdAt))
+          : undefined
+        
+        const newStats: NotificationStats = {
           total: newNotifications.length,
           unread: unreadCount,
-          read: newNotifications.length - unreadCount
+          byType,
+          recentActivity: {
+            lastNotification: latestNotification,
+            notificationsToday,
+            notificationsThisWeek
+          }
         }
         
         console.log('🔔 Updating notification stats from Firestore data:', newStats)
         setStats(newStats)
         
         // Check for new notifications
-        if (newNotifications.length > 0) {
-          const latestNotification = newNotifications[0]
-          const notificationTime = getTimestampMillis(latestNotification.createdAt)
+        if (newNotifications.length > 0 && latestNotification) {
+          const notificationTime = getTimestampMillis(newNotifications[0].createdAt)
           
           if (notificationTime > lastNotificationTimeRef.current) {
             lastNotificationTimeRef.current = notificationTime
