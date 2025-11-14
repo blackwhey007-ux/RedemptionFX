@@ -1275,6 +1275,7 @@ export async function initializeStreaming(): Promise<{ success: boolean; error?:
 
     await updateStreamingStatus({
       isConnected: false,
+      accountId: accountId || undefined,
       error: errorMessage,
       reconnects: reconnectAttempts,
       active: false
