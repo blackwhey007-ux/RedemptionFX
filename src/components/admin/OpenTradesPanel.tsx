@@ -516,9 +516,13 @@ export function OpenTradesPanel() {
               </thead>
               <tbody>
                 {positions.map((position, index) => {
+                  // Normalize type to 'BUY' | 'SELL'
+                  const normalizedType = position.type?.toString().toUpperCase() || ''
+                  const tradeType: 'BUY' | 'SELL' = normalizedType.includes('SELL') ? 'SELL' : 'BUY'
+                  
                   const pips = calculatePipsFromPosition({
                     symbol: position.symbol,
-                    type: position.type,
+                    type: tradeType,
                     openPrice: position.openPrice,
                     currentPrice: position.currentPrice
                   })
