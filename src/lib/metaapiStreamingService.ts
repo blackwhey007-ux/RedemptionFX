@@ -1082,9 +1082,56 @@ export async function initializeStreaming(): Promise<{ success: boolean; error?:
     // Clean up any stale archive locks from crashed processes
     await cleanupStaleLocks()
 
-    // Connect
-    await connection.connect()
-    console.log('✅ Connection opened')
+    // CRITICAL: Change working directory to /tmp in serverless environments
+    // MetaAPI SDK's FilesystemHistoryDatabase uses process.cwd() which points to /var/task (read-only)
+    // We need to change it to /tmp before connection.connect()
+    const originalCwd = process.cwd()
+    let changedCwd = false
+    
+    if (typeof window === 'undefined') {
+      const isServerless = 
+        process.env.VERCEL || 
+        process.env.VERCEL_ENV || 
+        process.env.AWS_LAMBDA_FUNCTION_NAME ||
+        process.env.FUNCTION_TARGET ||
+        process.env.K_SERVICE ||
+        process.env.FUNCTIONS_WORKER_RUNTIME
+      
+      if (isServerless) {
+        try {
+          process.chdir('/tmp')
+          changedCwd = true
+          console.log('🔧 Changed working directory to /tmp for MetaAPI SDK compatibility')
+        } catch (chdirError) {
+          console.warn('⚠️ Could not change working directory to /tmp:', chdirError)
+        }
+      }
+    }
+
+    // Connect - this is where FilesystemHistoryDatabase tries to create directories
+    try {
+      await connection.connect()
+      console.log('✅ Connection opened')
+    } catch (connectError: any) {
+      // Restore original working directory before throwing
+      if (changedCwd) {
+        try {
+          process.chdir(originalCwd)
+        } catch {}
+      }
+      throw connectError
+    }
+    
+    // Restore original working directory after successful connection
+    if (changedCwd) {
+      try {
+        process.chdir(originalCwd)
+        console.log('🔧 Restored working directory to original location')
+      } catch (restoreError) {
+        console.warn('⚠️ Could not restore working directory:', restoreError)
+        // Continue anyway - not critical
+      }
+    }
 
     // Wait for synchronization with timeout
     console.log('⏳ Waiting for synchronization...')
