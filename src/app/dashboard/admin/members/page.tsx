@@ -388,9 +388,9 @@ export default function AdminMembersPage() {
                 <Download className="w-4 h-4 mr-2" />
                 Export CSV
               </Button>
-              <Button onClick={clearApprovedMembers} variant="outline" className="border-yellow-200 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20">
+              <Button onClick={() => {}} variant="outline" className="border-yellow-200 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20" disabled>
                 <AlertTriangle className="w-4 h-4 mr-2" />
-                Clear Approved (Debug)
+                Clear Approved (Debug) - Disabled
               </Button>
             </div>
           </div>
