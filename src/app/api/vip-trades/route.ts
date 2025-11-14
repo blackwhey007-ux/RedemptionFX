@@ -30,13 +30,16 @@ export async function GET(request: Request) {
     
     // Filter for VIP trades (any source) and sort by createdAt
     const trades = allTrades
-      .filter(trade => 
-        trade.source === 'MT5_VIP' || 
-        trade.source === 'MANUAL' || 
-        trade.source === 'manual' || 
-        trade.source === 'csv' ||
-        trade.source === 'CSV'
-      )
+      .filter(trade => {
+        const tradeSource = (trade as any).source
+        return (
+          tradeSource === 'MT5_VIP' ||
+          tradeSource === 'MANUAL' ||
+          tradeSource === 'manual' ||
+          tradeSource === 'csv' ||
+          tradeSource === 'CSV'
+        )
+      })
       .sort((a, b) => {
         const aTime = a.createdAt?.getTime() || 0
         const bTime = b.createdAt?.getTime() || 0
