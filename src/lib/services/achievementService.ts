@@ -557,16 +557,17 @@ function getDifficultyFromRarity(rarity: AchievementRarity): number {
  */
 export async function getAchievement(achievementId: string): Promise<Achievement | null> {
   try {
+    // Fix: Use different variable names to avoid shadowing the imported 'doc' function
     const achievementDocRef = doc(db, ACHIEVEMENTS_COLLECTION, achievementId);
-    const achievementDoc = await getDoc(achievementDocRef);
+    const achievementDocSnapshot = await getDoc(achievementDocRef);
     
-    if (!achievementDoc.exists()) {
+    if (!achievementDocSnapshot.exists()) {
       return null;
     }
     
     return {
-      id: achievementDoc.id,
-      ...achievementDoc.data()
+      id: achievementDocSnapshot.id,
+      ...achievementDocSnapshot.data()
     } as Achievement;
   } catch (error) {
     console.error('Error getting achievement:', error);
