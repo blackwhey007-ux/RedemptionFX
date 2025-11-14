@@ -372,9 +372,7 @@ export async function syncAccountTrades(
       console.log(`[AccountSync] Sample deal structure:`, {
         keys: Object.keys(sampleDeal),
         entry: sampleDeal.entry,
-        entryType: sampleDeal.entryType,
         type: sampleDeal.type,
-        action: sampleDeal.action,
         positionId: sampleDeal.positionId,
         ticket: sampleDeal.ticket,
         id: sampleDeal.id
