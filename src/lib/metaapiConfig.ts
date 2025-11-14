@@ -169,21 +169,47 @@ export async function createMetaApiInstanceSafely(
     const instance = new MetaApiClass(token, config)
     return instance
   } catch (error: any) {
-    // If directory creation fails, try without storage path (might use in-memory)
-    if (error.message?.includes('ENOENT') || error.message?.includes('mkdir') || error.message?.includes('.metaapi')) {
-      console.warn('⚠️ MetaAPI SDK directory creation failed, attempting without storage path:', error.message)
+    const errorMessage = error?.message || String(error)
+    const errorStack = error?.stack || ''
+    
+    // Check if it's a directory creation error (including /var/task which is read-only in Vercel)
+    const isDirectoryError = 
+      errorMessage.includes('ENOENT') || 
+      errorMessage.includes('mkdir') || 
+      errorMessage.includes('.metaapi') ||
+      errorMessage.includes('metaapi') ||
+      errorMessage.includes('/var/task') ||
+      errorStack.includes('ENOENT') ||
+      errorStack.includes('mkdir')
+    
+    if (isDirectoryError) {
+      console.warn('⚠️ MetaAPI SDK directory creation failed, attempting without storage path:', errorMessage)
+      console.warn('   Error details:', { message: errorMessage, stack: errorStack.substring(0, 200) })
       
       try {
-        // Try with minimal config (no storage path)
+        // Try with minimal config (no storage path) - SDK might use in-memory mode
         const fallbackConfig = {
           application: config.application || 'redemptionfx',
         }
+        
         const instance = new MetaApiClass(token, fallbackConfig)
         console.warn('⚠️ MetaAPI SDK initialized without file storage (using in-memory mode)')
         return instance
       } catch (fallbackError: any) {
-        console.error('❌ MetaAPI SDK initialization failed even with fallback:', fallbackError)
-        throw fallbackError
+        console.error('❌ MetaAPI SDK initialization failed even with fallback:', fallbackError?.message || fallbackError)
+        
+        // Last resort: try with absolute minimal config
+        try {
+          const minimalConfig = {
+            application: config.application || 'redemptionfx',
+          }
+          const instance = new MetaApiClass(token, minimalConfig)
+          console.warn('⚠️ MetaAPI SDK initialized with minimal config')
+          return instance
+        } catch (minimalError: any) {
+          console.error('❌ MetaAPI SDK initialization failed with all fallback attempts')
+          throw new Error(`MetaAPI SDK initialization failed: ${errorMessage}. Fallback attempts also failed: ${fallbackError?.message || 'Unknown error'}`)
+        }
       }
     }
     
