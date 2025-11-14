@@ -1,23 +1,18 @@
-'use client'
+import { ReactNode } from 'react'
+import { DebugNotificationsLayoutClient } from './DebugNotificationsLayoutClient'
 
-import { UnifiedNotificationProvider } from '@/contexts/UnifiedNotificationContext'
-import { NotificationPreferencesProvider } from '@/contexts/NotificationPreferencesContext'
-
-// Force dynamic rendering for this route
+// Force dynamic rendering for this route and disable static generation
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default function DebugNotificationsLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
-    <NotificationPreferencesProvider>
-      <UnifiedNotificationProvider>
-        {children}
-      </UnifiedNotificationProvider>
-    </NotificationPreferencesProvider>
+    <DebugNotificationsLayoutClient>
+      {children}
+    </DebugNotificationsLayoutClient>
   )
 }
-
