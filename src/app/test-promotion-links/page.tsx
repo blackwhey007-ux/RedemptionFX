@@ -6,9 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { UserNotificationService } from '@/lib/userNotificationService'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUnifiedNotifications } from '@/contexts/UnifiedNotificationContext'
+import { UnifiedNotificationProvider } from '@/contexts/UnifiedNotificationContext'
 import { toast } from 'sonner'
 
-export default function TestPromotionLinksPage() {
+function TestPromotionLinksInner() {
   const { user } = useAuth()
   const { notifications, stats } = useUnifiedNotifications()
   const unreadCount = stats?.unread || 0
@@ -157,5 +158,13 @@ export default function TestPromotionLinksPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function TestPromotionLinksPage() {
+  return (
+    <UnifiedNotificationProvider>
+      <TestPromotionLinksInner />
+    </UnifiedNotificationProvider>
   )
 }
