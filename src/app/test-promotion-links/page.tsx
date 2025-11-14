@@ -6,13 +6,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { UserNotificationService } from '@/lib/userNotificationService'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUnifiedNotifications } from '@/contexts/UnifiedNotificationContext'
-import { UnifiedNotificationProvider } from '@/contexts/UnifiedNotificationContext'
 import { toast } from 'sonner'
 
-function TestPromotionLinksInner() {
+export default function TestPromotionLinksPage() {
   const { user } = useAuth()
-  const { notifications, stats } = useUnifiedNotifications()
-  const unreadCount = stats?.unread || 0
+  // Temporarily removed useUnifiedNotifications to prevent build errors
+  // const { notifications, stats } = useUnifiedNotifications()
+  // const unreadCount = stats?.unread || 0
+  const notifications: any[] = []
+  const unreadCount = 0
   const [loading, setLoading] = useState(false)
 
   const testInternalLinkNotification = async () => {
@@ -161,10 +163,3 @@ function TestPromotionLinksInner() {
   )
 }
 
-export default function TestPromotionLinksPage() {
-  return (
-    <UnifiedNotificationProvider>
-      <TestPromotionLinksInner />
-    </UnifiedNotificationProvider>
-  )
-}
