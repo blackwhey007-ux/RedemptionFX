@@ -618,15 +618,16 @@ export async function cleanupOldActivities(daysOld: number = 90): Promise<number
  */
 export async function getActivity(activityId: string): Promise<ActivityFeedItem | null> {
   try {
-    const doc = await getDoc(doc(db, ACTIVITY_FEED_COLLECTION, activityId));
+    const docRef = doc(db, ACTIVITY_FEED_COLLECTION, activityId);
+    const docSnap = await getDoc(docRef);
     
-    if (!doc.exists()) {
+    if (!docSnap.exists()) {
       return null;
     }
     
     return {
-      id: doc.id,
-      ...doc.data()
+      id: docSnap.id,
+      ...docSnap.data()
     } as ActivityFeedItem;
   } catch (error) {
     console.error('Error getting activity:', error);
