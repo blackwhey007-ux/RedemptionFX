@@ -355,7 +355,7 @@ export async function formatCloseNotification(
   // Calculate pips from entry/exit prices since MT5Position doesn't have pips property
   const pips = entry && exit ? calculatePipsFromPosition({
     symbol,
-    type: position.type,
+    type: position.type as 'BUY' | 'SELL',
     openPrice: entry,
     currentPrice: exit
   }) : 0
@@ -419,7 +419,7 @@ export async function formatTradeClosedMessage(
   const exitPrice = (position as any).currentPrice || (position as any).priceCurrent || 0
   const pips = entryPrice && exitPrice ? calculatePipsFromPosition({
     symbol: position.symbol || 'Unknown',
-    type: position.type,
+    type: position.type as 'BUY' | 'SELL',
     openPrice: entryPrice,
     currentPrice: exitPrice
   }) : 0
