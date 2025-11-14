@@ -190,7 +190,7 @@ export default function AdminMembersPage() {
     try {
       // Mark this member as approved FIRST when activating (changing from pending to active)
       if (newStatus === 'active') {
-        markMemberAsApproved(uid)
+        // markMemberAsApproved function removed - status update handles approval
       }
       
       await updateMemberStatus(uid, newStatus)
