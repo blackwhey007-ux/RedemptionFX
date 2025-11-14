@@ -5,6 +5,7 @@
  */
 
 // Set environment variable early to prevent MetaAPI SDK from using default path
+// This MUST run before any MetaAPI SDK code is imported
 if (typeof window === 'undefined') {
   const isServerless = 
     process.env.VERCEL || 
@@ -14,9 +15,31 @@ if (typeof window === 'undefined') {
     process.env.K_SERVICE ||
     process.env.FUNCTIONS_WORKER_RUNTIME
   
-  if (isServerless && !process.env.METAAPI_STORAGE_PATH) {
-    // Set storage path before MetaAPI SDK tries to initialize
-    process.env.METAAPI_STORAGE_PATH = '/tmp/.metaapi'
+  if (isServerless) {
+    // Set storage path to /tmp which is writable in serverless
+    // MetaAPI SDK may check this during module initialization
+    if (!process.env.METAAPI_STORAGE_PATH) {
+      process.env.METAAPI_STORAGE_PATH = '/tmp/.metaapi'
+    }
+    
+    // Also try to set alternative environment variables MetaAPI SDK might check
+    if (!process.env.METAAPI_CACHE_PATH) {
+      process.env.METAAPI_CACHE_PATH = '/tmp/.metaapi'
+    }
+    
+    // Try to create the directory immediately if possible
+    try {
+      if (typeof require !== 'undefined') {
+        const fs = require('fs')
+        const dirPath = '/tmp/.metaapi'
+        if (!fs.existsSync(dirPath)) {
+          fs.mkdirSync(dirPath, { recursive: true })
+        }
+      }
+    } catch (dirError) {
+      // Directory creation may fail, but that's okay - we'll handle it in createMetaApiInstanceSafely
+      console.warn('⚠️ Could not pre-create /tmp/.metaapi directory:', dirError)
+    }
   }
 }
 

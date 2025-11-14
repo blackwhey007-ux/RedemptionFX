@@ -1,4 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server'
+
+// CRITICAL: Set environment variable BEFORE any MetaAPI SDK code is imported
+// MetaAPI SDK may try to create directories during module initialization
+if (typeof window === 'undefined') {
+  const isServerless = 
+    process.env.VERCEL || 
+    process.env.VERCEL_ENV || 
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.FUNCTION_TARGET ||
+    process.env.K_SERVICE ||
+    process.env.FUNCTIONS_WORKER_RUNTIME
+  
+  if (isServerless) {
+    // Set storage path to /tmp which is writable in serverless
+    if (!process.env.METAAPI_STORAGE_PATH) {
+      process.env.METAAPI_STORAGE_PATH = '/tmp/.metaapi'
+    }
+    if (!process.env.METAAPI_CACHE_PATH) {
+      process.env.METAAPI_CACHE_PATH = '/tmp/.metaapi'
+    }
+    
+    // Try to create directory immediately
+    try {
+      if (typeof require !== 'undefined') {
+        const fs = require('fs')
+        const dirPath = '/tmp/.metaapi'
+        if (!fs.existsSync(dirPath)) {
+          fs.mkdirSync(dirPath, { recursive: true })
+        }
+      }
+    } catch (dirError) {
+      // Directory creation may fail, but that's okay
+    }
+  }
+}
+
 import { initializeStreaming, getStreamingStatus } from '@/lib/metaapiStreamingService'
 
 // Force dynamic rendering for serverless functions
