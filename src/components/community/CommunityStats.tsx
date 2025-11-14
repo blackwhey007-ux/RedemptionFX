@@ -179,7 +179,7 @@ export function CommunityStats({ className = '' }: CommunityStatsProps) {
         <CardContent>
           <div className="space-y-4">
             {activityTypes.map((type) => {
-              const count = stats.activitiesByType[type.key as keyof typeof stats.activitiesByType] || 0;
+              const count = (stats.activitiesByType[type.key as keyof typeof stats.activitiesByType] as number) || 0;
               const percentage = totalActivities > 0 ? (count / totalActivities) * 100 : 0;
               
               return (
