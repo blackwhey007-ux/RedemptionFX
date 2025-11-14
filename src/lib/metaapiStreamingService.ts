@@ -1685,14 +1685,28 @@ async function updateStreamingStatus(status: StreamingStatus): Promise<void> {
     const q = query(collection(db, 'metaapi_streaming_status'))
     const querySnapshot = await getDocs(q)
     
-    const statusData = {
-      isConnected: status.isConnected,
-      accountId: status.accountId,
-      lastEvent: status.lastEvent ? Timestamp.fromDate(status.lastEvent) : null,
-      error: status.error || null,
-      reconnects: status.reconnects || 0,
-      updatedAt: Timestamp.now(),
-      active: status.active !== undefined ? status.active : true
+    // Build status data, filtering out undefined values to avoid Firestore errors
+    const statusData: any = {
+      updatedAt: Timestamp.now()
+    }
+    
+    if (status.isConnected !== undefined) {
+      statusData.isConnected = status.isConnected
+    }
+    if (status.accountId !== undefined && status.accountId !== null) {
+      statusData.accountId = status.accountId
+    }
+    if (status.lastEvent) {
+      statusData.lastEvent = Timestamp.fromDate(status.lastEvent)
+    }
+    if (status.error !== undefined && status.error !== null) {
+      statusData.error = status.error
+    }
+    if (status.reconnects !== undefined) {
+      statusData.reconnects = status.reconnects || 0
+    }
+    if (status.active !== undefined) {
+      statusData.active = status.active
     }
     
     if (querySnapshot.empty) {
