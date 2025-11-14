@@ -552,19 +552,34 @@ export function UnifiedNotificationProvider({ children }: UnifiedNotificationPro
           byType[n.type] = (byType[n.type] || 0) + 1
         })
         
+        // Helper to convert Timestamp to Date
+        const toDate = (timestamp: any): Date => {
+          if (!timestamp) return new Date()
+          if (typeof timestamp.toDate === 'function') {
+            return timestamp.toDate()
+          }
+          if (timestamp instanceof Date) {
+            return timestamp
+          }
+          if (timestamp.seconds) {
+            return new Date(timestamp.seconds * 1000)
+          }
+          return new Date(timestamp)
+        }
+        
         // Count recent activity
         const notificationsToday = newNotifications.filter(n => {
-          const createdAt = n.createdAt?.toDate ? n.createdAt.toDate() : new Date(n.createdAt)
+          const createdAt = toDate(n.createdAt)
           return createdAt >= today
         }).length
         
         const notificationsThisWeek = newNotifications.filter(n => {
-          const createdAt = n.createdAt?.toDate ? n.createdAt.toDate() : new Date(n.createdAt)
+          const createdAt = toDate(n.createdAt)
           return createdAt >= weekAgo
         }).length
         
         const latestNotification = newNotifications.length > 0 
-          ? (newNotifications[0].createdAt?.toDate ? newNotifications[0].createdAt.toDate() : new Date(newNotifications[0].createdAt))
+          ? toDate(newNotifications[0].createdAt)
           : undefined
         
         const newStats: NotificationStats = {
