@@ -471,9 +471,9 @@ export function UnifiedNotificationProvider({ children }: UnifiedNotificationPro
         tag: options.tag,
         requireInteraction: options.requireInteraction || false,
         silent: options.silent || false,
-        vibrate: options.vibrate,
+        ...(options.vibrate && { vibrate: options.vibrate }),
         data: options.data,
-        actions: options.actions
+        ...(options.actions && { actions: options.actions } as any)
       })
     } catch (err) {
       // Silently fail - don't spam console with notification errors
