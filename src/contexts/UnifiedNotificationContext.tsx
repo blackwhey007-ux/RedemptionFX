@@ -616,13 +616,13 @@ export function UnifiedNotificationProvider({ children }: UnifiedNotificationPro
 
             // Show browser notification if enabled
             if (preferences.browserNotificationsEnabled && !isDNDActive()) {
-              console.log('🔔 Showing browser notification:', latestNotification.title)
+              console.log('🔔 Showing browser notification:', latestNotif.title)
               showBrowserNotification({
-                title: latestNotification.title,
-                body: latestNotification.message,
+                title: latestNotif.title,
+                body: latestNotif.message,
                 icon: '/images/redemptionfx-logo.png',
-                tag: `notification-${latestNotification.id}`,
-                data: { notificationId: latestNotification.id }
+                tag: `notification-${latestNotif.id}`,
+                data: { notificationId: latestNotif.id }
               })
             }
           }
