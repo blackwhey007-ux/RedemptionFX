@@ -19,7 +19,8 @@ import {
   Timestamp,
   arrayUnion,
   arrayRemove,
-  increment
+  increment,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { ActivityFeedItem, ActivityType, VisibilityLevel, ActivityFilters } from '@/types/community';
@@ -596,7 +597,7 @@ export async function cleanupOldActivities(daysOld: number = 90): Promise<number
     );
 
     const snapshot = await getDocs(q);
-    const batch = db.batch();
+    const batch = writeBatch(db);
     
     snapshot.forEach((doc) => {
       batch.delete(doc.ref);
