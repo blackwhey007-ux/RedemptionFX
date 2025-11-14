@@ -1,6 +1,4 @@
-// Disable static generation for this debug page
-export const dynamic = 'force-dynamic'
-
+// Route segment config is in layout.tsx (server component)
 export default function DebugNotificationsPage() {
   return (
     <div className="container mx-auto px-4 py-8">
