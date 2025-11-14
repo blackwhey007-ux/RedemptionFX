@@ -414,7 +414,15 @@ export async function formatTradeClosedMessage(
   const type = position.type?.replace('POSITION_TYPE_', '') || 'Unknown'
   const entry = position.openPrice || position.entryPrice || 0
   const exit = closePrice || position.closePrice || position.currentPrice || 0
-  const pips = position.pips || 0
+  // Calculate pips from entry/exit prices since MT5Position doesn't have pips property
+  const entryPrice = (position as any).openPrice || position.priceOpen || 0
+  const exitPrice = (position as any).currentPrice || position.priceCurrent || 0
+  const pips = entryPrice && exitPrice ? calculatePipsFromPosition({
+    symbol: position.symbol || 'Unknown',
+    type: position.type,
+    openPrice: entryPrice,
+    currentPrice: exitPrice
+  }) : 0
   
   // Try to get custom template from settings
   try {
