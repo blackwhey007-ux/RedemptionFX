@@ -412,11 +412,11 @@ export async function formatTradeClosedMessage(
 ): Promise<string> {
   const symbol = position.symbol || 'Unknown'
   const type = position.type?.replace('POSITION_TYPE_', '') || 'Unknown'
-  const entry = position.openPrice || position.entryPrice || 0
-  const exit = closePrice || position.closePrice || position.currentPrice || 0
+  const entry = (position as any).openPrice || (position as any).priceOpen || (position as any).entryPrice || 0
+  const exit = closePrice || (position as any).closePrice || (position as any).currentPrice || (position as any).priceCurrent || 0
   // Calculate pips from entry/exit prices since MT5Position doesn't have pips property
-  const entryPrice = (position as any).openPrice || position.priceOpen || 0
-  const exitPrice = (position as any).currentPrice || position.priceCurrent || 0
+  const entryPrice = (position as any).openPrice || (position as any).priceOpen || 0
+  const exitPrice = (position as any).currentPrice || (position as any).priceCurrent || 0
   const pips = entryPrice && exitPrice ? calculatePipsFromPosition({
     symbol: position.symbol || 'Unknown',
     type: position.type,
