@@ -4,11 +4,6 @@ const nextConfig = {
   pageExtensions: ['ts', 'tsx', 'js', 'jsx'],
   reactStrictMode: true,
   
-  // Skip static generation for debug pages
-  generateBuildId: async () => {
-    return 'build-' + Date.now()
-  },
-  
   webpack: (config, { isServer }) => {
     if (isServer) {
       // Externalize MetaAPI SDK for server-side to avoid "window is not defined" error
