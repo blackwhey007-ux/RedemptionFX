@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
-import { AnalyticsData, OptimizationInsights } from '@/lib/analyticsService'
+import type { AnalyticsData, OptimizationInsights } from '@/lib/analyticsService'
 import { TrendingUp, Target, Clock, DollarSign, Calendar, Award } from 'lucide-react'
 
 interface OptimizationInsightsProps {
