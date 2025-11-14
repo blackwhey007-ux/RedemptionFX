@@ -10,10 +10,29 @@ import { Badge } from '@/components/ui/badge'
 
 // Disable static generation - this page requires client-side context
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+export const revalidate = 0
 
 export default function DebugNotificationsPage() {
   const { user } = useAuth()
-  const { notifications, stats, loading } = useUnifiedNotifications()
+  
+  // Use hook conditionally with error boundary
+  let notifications: any[] = []
+  let stats: any = null
+  let loading = false
+  
+  // Check if we're in browser (not during SSG)
+  if (typeof window !== 'undefined') {
+    try {
+      const unifiedNotifications = useUnifiedNotifications()
+      notifications = unifiedNotifications.notifications || []
+      stats = unifiedNotifications.stats || null
+      loading = unifiedNotifications.loading || false
+    } catch (error) {
+      console.warn('Provider not available - this is expected during build')
+    }
+  }
+  
   const unreadCount = stats?.unread || 0
   const [debugInfo, setDebugInfo] = useState<any>({})
 
