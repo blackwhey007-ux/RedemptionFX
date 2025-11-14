@@ -351,7 +351,7 @@ export async function formatCloseNotification(
   const symbol = position.symbol || 'Unknown'
   const type = position.type?.replace('POSITION_TYPE_', '') || 'Unknown'
   const entry = position.openPrice || 0
-  const exit = position.closePrice || position.currentPrice || 0
+  const exit = position.currentPrice || 0
   const pips = position.pips || 0
   const profit = position.profit || 0
   const result = pips > 0 ? 'WIN' : pips < 0 ? 'LOSS' : 'BREAKEVEN'
