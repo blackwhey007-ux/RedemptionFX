@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUnifiedNotifications } from '@/contexts/UnifiedNotificationContext'
 import { UserNotificationService } from '@/lib/userNotificationService'
+import { UserNotificationService } from '@/lib/userNotificationService'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -31,16 +32,11 @@ export default function DebugNotificationsPage() {
     if (!user) return
     
     try {
-      await addNotification({
-        userId: user.uid,
-        type: 'system',
-        title: 'Direct Test Notification',
-        message: 'This notification was created directly through the context',
-        data: {
-          soundType: 'info',
-          actionUrl: '/dashboard'
-        }
-      })
+      await UserNotificationService.createSystemNotification(
+        user.uid,
+        'Direct Test Notification',
+        'This notification was created directly through the service'
+      )
       console.log('Direct notification added successfully')
     } catch (error) {
       console.error('Error adding direct notification:', error)
