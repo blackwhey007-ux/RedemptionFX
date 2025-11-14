@@ -2,16 +2,28 @@
 
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { useUnifiedNotifications } from '@/contexts/UnifiedNotificationContext'
+// Commented out to prevent build errors - useUnifiedNotifications requires provider context
+// import { useUnifiedNotifications } from '@/contexts/UnifiedNotificationContext'
 import { UserNotificationService } from '@/lib/userNotificationService'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
+// Disable static generation for this test page
+export const dynamic = 'force-dynamic'
+
 export default function TestSimpleNotificationPage() {
   const { user } = useAuth()
-  const { notifications, stats, loading } = useUnifiedNotifications()
-  const unreadCount = stats?.unread || 0
+  // Commented out useUnifiedNotifications to prevent build errors during static generation
+  // This hook requires UnifiedNotificationProvider which isn't available during build time
+  // Can be re-enabled locally for development/testing
+  // const { notifications, stats, loading } = useUnifiedNotifications()
+  // const unreadCount = stats?.unread || 0
+  
+  // Fallback values for production build
+  const notifications: any[] = []
+  const loading = false
+  const unreadCount = 0
   const [testResults, setTestResults] = useState<string[]>([])
 
   const addResult = (result: string) => {
@@ -71,9 +83,10 @@ export default function TestSimpleNotificationPage() {
     }
   }, [user])
 
-  useEffect(() => {
-    addResult(`Notifications loaded: ${notifications.length}, Unread: ${unreadCount}`)
-  }, [notifications, unreadCount])
+  // Commented out useEffect that depends on notifications - using fallback values instead
+  // useEffect(() => {
+  //   addResult(`Notifications loaded: ${notifications.length}, Unread: ${unreadCount}`)
+  // }, [notifications, unreadCount])
 
   if (!user) {
     return (

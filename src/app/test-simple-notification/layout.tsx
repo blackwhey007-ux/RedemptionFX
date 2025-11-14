@@ -4,7 +4,7 @@ import { ReactNode } from 'react'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export default function TestPromotionLinksLayout({
+export default function TestSimpleNotificationLayout({
   children,
 }: {
   children: ReactNode

@@ -1,4 +1,5 @@
-export const dynamic = 'force-static'
+// Disable static generation for this debug page
+export const dynamic = 'force-dynamic'
 
 export default function DebugNotificationsPage() {
   return (
