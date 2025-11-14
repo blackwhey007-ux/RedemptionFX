@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Filter, X, Calendar, Globe, Zap } from 'lucide-react'
-import { EconomicCalendarFilters, COUNTRY_FLAGS, EVENT_TYPES } from '@/types/economic-calendar'
+import { type EconomicCalendarFilters, COUNTRY_FLAGS, EVENT_TYPES } from '@/types/economic-calendar'
 
 interface EconomicCalendarFiltersProps {
   filters: EconomicCalendarFilters
@@ -83,12 +83,13 @@ export function EconomicCalendarFilters({
   }
 
   const hasActiveFilters = () => {
+    const hasCustomDateRange = filters.dateRange === 'custom' && (filters.customStartDate || filters.customEndDate)
     return (
       filters.dateRange !== 'week' ||
       filters.countries.length > 0 ||
       filters.impactLevels.length > 0 ||
       filters.eventTypes.length > 0 ||
-      (filters.dateRange === 'custom' && (filters.customStartDate || filters.customEndDate))
+      hasCustomDateRange
     )
   }
 

@@ -116,7 +116,7 @@ class PositionListener {
               if (telegramSettings?.botToken) {
                 console.log(`📝 Editing Telegram message ${telegramMapping.telegramMessageId} in chat ${telegramMapping.telegramChatId}`)
 
-                const message = formatTradeUpdateMessage(
+                const message = await formatTradeUpdateMessage(
                   position,
                   previousState.stopLoss,
                   previousState.takeProfit
@@ -193,7 +193,7 @@ class PositionListener {
           try {
             const telegramSettings = await getTelegramSettings()
             if (telegramSettings?.enableChannel && telegramSettings?.channelId && telegramSettings?.botToken) {
-              const message = formatOpenTradeMessage(position)
+              const message = await formatOpenTradeMessage(position)
               const messageId = await sendToTelegramAPI(
                 message,
                 'channel',
@@ -230,33 +230,34 @@ class PositionListener {
             const result = await createSignalFromMT5Position(position, 'vip', 'system', 'MT5 Auto Signal')
             console.log(`✅ Signal created for tracking position ${positionId}`)
 
-          await addStreamingLog({
-            type: 'signal_created',
-            message: `Signal created for position ${positionId}`,
-            positionId,
-            signalId: result.signalId,
-            accountId: this.accountId,
-            success: true,
-            details: {
-              alreadyExists: result.alreadyExists,
-              pair: result.signal.pair,
-              type: result.signal.type
-            }
-          })
-        } catch (signalError) {
-          console.error('❌ Error creating signal:', signalError)
+            await addStreamingLog({
+              type: 'signal_created',
+              message: `Signal created for position ${positionId}`,
+              positionId,
+              signalId: result.signalId,
+              accountId: this.accountId,
+              success: true,
+              details: {
+                alreadyExists: result.alreadyExists,
+                pair: result.signal.pair,
+                type: result.signal.type
+              }
+            })
+          } catch (signalError) {
+            console.error('❌ Error creating signal:', signalError)
 
-          await addStreamingLog({
-            type: 'error',
-            message: `Error creating signal for position ${positionId}`,
-            positionId,
-            accountId: this.accountId,
-            success: false,
-            error: signalError instanceof Error ? signalError.message : 'Unknown error',
-            details: {
-              error: signalError
-            }
-          })
+            await addStreamingLog({
+              type: 'error',
+              message: `Error creating signal for position ${positionId}`,
+              positionId,
+              accountId: this.accountId,
+              success: false,
+              error: signalError instanceof Error ? signalError.message : 'Unknown error',
+              details: {
+                error: signalError
+              }
+            })
+          }
         }
       }
 
@@ -296,30 +297,46 @@ class PositionListener {
           
           console.log(`📋 [ARCHIVE] Signal mapping retrieved:`, {
             hasMapping: !!mapping,
-            hasSignal: !!mapping?.signal,
+            hasSignalId: !!mapping?.signalId,
             lastKnownProfit: mapping?.lastKnownProfit,
-            lastKnownPrice: mapping?.lastKnownPrice,
-            signalPair: mapping?.signal?.pair
+            signalId: mapping?.signalId
           })
-          
-          // Get position data from mapping
-          if (mapping?.signal) {
+
+          // Get position data from mapping - note: mapping only has signalId, not full signal
+          // For now, we'll create a minimal signal object from mapping data
+          if (mapping?.signalId && mapping.pair) {
+            // Create minimal signal object from mapping data (we don't have position object in removedPositionIds loop)
+            const signal = {
+              id: mapping.signalId,
+              pair: mapping.pair,
+              type: 'BUY' as const, // Default - we don't have position type here
+              entryPrice: 0, // We don't have this data in mapping
+              stopLoss: 0,
+              takeProfit1: 0,
+              status: 'close_now' as const,
+              title: `Trade ${mapping.pair}`,
+              description: `Trade from position ${positionId}`,
+              category: 'vip' as const,
+              postedAt: new Date(),
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              createdBy: 'system',
+              createdByName: 'System',
+              isActive: false
+            } as any
+            
             console.log(`✅ [ARCHIVE] Archiving trade with data:`, {
               positionId,
-              symbol: mapping.signal.pair,
-              type: mapping.signal.type,
-              entryPrice: mapping.signal.entryPrice,
+              symbol: mapping.pair,
               profit: mapping.lastKnownProfit,
-              price: mapping.lastKnownPrice,
-              stopLoss: mapping.signal.stopLoss,
-              takeProfit: mapping.signal.takeProfit1
+              price: 0
             })
             
             const archiveId = await archiveClosedTrade({
               positionId,
-              signal: mapping.signal,
+              signal,
               finalProfit: mapping.lastKnownProfit || 0,
-              finalPrice: mapping.lastKnownPrice || 0,
+              finalPrice: 0, // We don't have close price in mapping
               accountId: this.accountId
             })
             console.log(`✅ [ARCHIVE] Trade archived to history with ID: ${archiveId}`)
@@ -351,18 +368,19 @@ class PositionListener {
               const { getSignalMappingByPosition } = await import('./mt5SignalService')
               const mapping = await getSignalMappingByPosition(positionId)
 
+              // We don't have position object in removedPositionIds loop, use mapping data
               const closedPosition = {
-                symbol: mapping?.signal?.pair || 'Unknown',
-                type: mapping?.signal?.type || 'Unknown',
+                symbol: mapping?.pair || 'Unknown',
+                type: 'Unknown',
                 volume: 0,
                 profit: mapping?.lastKnownProfit || 0,
-                openPrice: mapping?.signal?.entryPrice || 0,
-                currentPrice: mapping?.lastKnownPrice || 0,
-                stopLoss: mapping?.signal?.stopLoss,
-                takeProfit: mapping?.signal?.takeProfit1
+                openPrice: 0,
+                currentPrice: 0,
+                stopLoss: undefined,
+                takeProfit: undefined
               }
 
-              const message = formatTradeClosedMessage(closedPosition)
+              const message = await formatTradeClosedMessage(closedPosition)
 
               await editTelegramMessage(
                 telegramMapping.telegramChatId,

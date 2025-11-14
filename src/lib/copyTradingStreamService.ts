@@ -4,7 +4,8 @@
  * Archives closed trades to Firestore with pips calculation
  */
 
-import { MetaApi } from 'metaapi.cloud-sdk'
+import MetaApi from 'metaapi.cloud-sdk'
+import { SynchronizationListener } from 'metaapi.cloud-sdk'
 import { getMasterStrategy } from './copyTradingRepo'
 import { decrypt } from './crypto'
 import { archiveClosedTrade } from './mt5TradeHistoryService'
@@ -68,7 +69,19 @@ export async function startCopyTradingStream(
     // Initialize MetaAPI
     const metaApi = new MetaApi(token, { application: 'redemptionfx' })
     const account = await metaApi.metatraderAccountApi.getAccount(accountId)
-    const connection = account.getRPCConnection()
+    
+    // Deploy account if needed
+    if (account.state !== 'DEPLOYED') {
+      await account.deploy()
+      await account.waitDeployed()
+    }
+    
+    // Wait for connection
+    if (account.connectionStatus !== 'CONNECTED') {
+      await account.waitConnected()
+    }
+    
+    const connection = account.getStreamingConnection()
 
     // Create position listener
     const listener = new CopyTradingPositionListener(accountId, strategyId || masterStrategy.strategyId)
@@ -143,12 +156,13 @@ export function getStreamingStatus(accountId: string): { isActive: boolean } {
 /**
  * Position listener for copy trading
  */
-class CopyTradingPositionListener {
+class CopyTradingPositionListener extends SynchronizationListener {
   private accountId: string
   private strategyId: string
   private seenPositions = new Map<string, any>()
 
   constructor(accountId: string, strategyId: string) {
+    super()
     this.accountId = accountId
     this.strategyId = strategyId
   }
@@ -213,6 +227,7 @@ class CopyTradingPositionListener {
       })
 
       // Create a minimal signal object for archiveClosedTrade
+      // We'll use type assertion since we only have position data, not full signal data
       const signal = {
         id: position.id?.toString() || '',
         pair: symbol,
@@ -222,8 +237,17 @@ class CopyTradingPositionListener {
         takeProfit1: position.takeProfit || previousPosition?.takeProfit,
         takeProfit2: undefined,
         takeProfit3: undefined,
-        status: 'closed' as const
-      }
+        status: 'closed' as const,
+        // Required Signal fields with defaults
+        title: `${type} ${symbol}`,
+        description: `Trade closed for ${symbol}`,
+        category: 'vip' as const,
+        postedAt: openTime,
+        postedBy: 'system',
+        vipOnly: false,
+        createdAt: openTime,
+        updatedAt: closeTime
+      } as any
 
       // Archive the trade
       await archiveClosedTrade({

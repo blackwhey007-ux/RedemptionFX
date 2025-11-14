@@ -251,10 +251,6 @@ export async function sendTradeAlert(
       title: `Trade Alert: ${alertType}`,
       message,
       data: {
-        tradeId: trade.id,
-        accountId: trade.accountId,
-        alertType,
-        symbol: trade.symbol,
         actionUrl: '/dashboard/copy-trading',
         soundType: trade.profit && trade.profit > 0 ? 'success' : 'warning'
       }
@@ -387,12 +383,6 @@ export async function sendDailySummary(userId: string, accountId: string, date: 
       title: 'Daily Trading Summary',
       message,
       data: {
-        accountId,
-        date: date.toISOString(),
-        totalTrades,
-        winRate,
-        totalProfit,
-        totalPips,
         actionUrl: '/dashboard/copy-trading',
         soundType: totalProfit > 0 ? 'success' : totalProfit < 0 ? 'warning' : 'info'
       }

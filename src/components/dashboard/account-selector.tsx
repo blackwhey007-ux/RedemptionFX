@@ -679,7 +679,7 @@ export function AccountSelector({ onAccountLinked, onAccountChanged }: AccountSe
                 <SelectContent>
                   {copyTradingAccounts.map((account) => (
                     <SelectItem key={account.accountId} value={account.accountId}>
-                      {account.accountName} ({account.accountId})
+                      {account.strategyName} - {account.accountId}
                     </SelectItem>
                   ))}
                 </SelectContent>

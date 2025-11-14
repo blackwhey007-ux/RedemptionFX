@@ -103,7 +103,14 @@ export async function debouncedWrite(
   // Value changed, write it
   try {
     const docRef = doc(db, collectionName, docId)
-    await docRef.set ? docRef.set(data) : docRef.update ? docRef.update(data) : null
+    // Use setDoc or updateDoc functions from firebase/firestore
+    const { setDoc, updateDoc } = await import('firebase/firestore')
+    try {
+      await setDoc(docRef, data, { merge: true })
+    } catch (error) {
+      // If set fails, try update
+      await updateDoc(docRef, data)
+    }
     
     // Cache the value
     lastWrittenValues.set(cacheKey, dataToCompare)

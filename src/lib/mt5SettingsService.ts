@@ -83,9 +83,10 @@ export const saveMT5Settings = async (settings: Omit<MT5Settings, 'id' | 'create
         updatedAt: Timestamp.now()
       }
       
-      if (settings.lastSync) {
-        settingsData.lastSync = Timestamp.fromDate(new Date(settings.lastSync))
-      }
+      // Note: lastSync property removed from MT5Settings type
+      // if (settings.lastSync) {
+      //   settingsData.lastSync = Timestamp.fromDate(new Date(settings.lastSync))
+      // }
       
       const docRef = await addDoc(collection(db, 'mt5Settings'), settingsData)
       return docRef.id

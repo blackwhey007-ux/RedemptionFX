@@ -386,15 +386,13 @@ export async function syncAccountTrades(
       // Check multiple possible field names for entry/exit
       const entryCount = posDeals.filter(d => {
         return d.entry === 'IN' || 
-               d.entryType === 'DEAL_ENTRY_IN' || 
-               d.entryType === 0 ||
-               (d.action && d.action.includes('IN'))
+               ((d as any).entryType === 'DEAL_ENTRY_IN' || (d as any).entryType === 0) ||
+               ((d as any).action && (d as any).action.includes('IN'))
       }).length
       const exitCount = posDeals.filter(d => {
         return d.entry === 'OUT' || 
-               d.entryType === 'DEAL_ENTRY_OUT' || 
-               d.entryType === 1 ||
-               (d.action && d.action.includes('OUT'))
+               ((d as any).entryType === 'DEAL_ENTRY_OUT' || (d as any).entryType === 1) ||
+               ((d as any).action && (d as any).action.includes('OUT'))
       }).length
       totalEntryDeals += entryCount
       totalExitDeals += exitCount
@@ -443,15 +441,13 @@ export async function syncAccountTrades(
         // Check multiple possible field names for entry/exit
         const entryDeals = positionDeals.filter(d => {
           return d.entry === 'IN' || 
-                 d.entryType === 'DEAL_ENTRY_IN' || 
-                 d.entryType === 0 ||
-                 (d.action && d.action.includes('IN'))
+                 ((d as any).entryType === 'DEAL_ENTRY_IN' || (d as any).entryType === 0) ||
+                 ((d as any).action && (d as any).action.includes('IN'))
         })
         const exitDeals = positionDeals.filter(d => {
           return d.entry === 'OUT' || 
-                 d.entryType === 'DEAL_ENTRY_OUT' || 
-                 d.entryType === 1 ||
-                 (d.action && d.action.includes('OUT'))
+                 ((d as any).entryType === 'DEAL_ENTRY_OUT' || (d as any).entryType === 1) ||
+                 ((d as any).action && (d as any).action.includes('OUT'))
         })
         
         // Only process positions that have been closed (have exit deals)
@@ -841,9 +837,8 @@ function convertMT5DealToAccountTrade(
   const isBuy = deal.type === 'BUY'
   // Check multiple possible field names for entry/exit
   const isEntry = deal.entry === 'IN' || 
-                  deal.entryType === 'DEAL_ENTRY_IN' || 
-                  deal.entryType === 0 ||
-                  (deal.action && deal.action.includes('IN'))
+                  ((deal as any).entryType === 'DEAL_ENTRY_IN' || (deal as any).entryType === 0) ||
+                  ((deal as any).action && (deal as any).action.includes('IN'))
   
   // Use provided entryDeal or find it
   let finalEntryDeal: MT5Deal | undefined = entryDeal
@@ -857,9 +852,8 @@ function convertMT5DealToAccountTrade(
     // This is an exit deal - find the matching entry deal
     finalEntryDeal = allDeals.find(d => {
       const isEntryDeal = d.entry === 'IN' || 
-                          d.entryType === 'DEAL_ENTRY_IN' || 
-                          d.entryType === 0 ||
-                          (d.action && d.action.includes('IN'))
+                          ((d as any).entryType === 'DEAL_ENTRY_IN' || (d as any).entryType === 0) ||
+                          ((d as any).action && (d as any).action.includes('IN'))
       return d.positionId === deal.positionId && 
              isEntryDeal &&
              d.symbol === deal.symbol
@@ -1372,9 +1366,8 @@ async function saveToTradeHistory(
     // Entry deals (entry = 'IN') are not closed trades yet
     // Check multiple possible field names for entry/exit
     const isExitDeal = deal.entry === 'OUT' || 
-                       deal.entryType === 'DEAL_ENTRY_OUT' || 
-                       deal.entryType === 1 ||
-                       (deal.action && deal.action.includes('OUT'))
+                       ((deal as any).entryType === 'DEAL_ENTRY_OUT' || (deal as any).entryType === 1) ||
+                       ((deal as any).action && (deal as any).action.includes('OUT'))
     if (!isExitDeal) {
       return // Skip entry deals
     }
@@ -1444,9 +1437,8 @@ async function saveToTradeHistory(
     // Use provided entryDeal or find it
     const finalEntryDeal = entryDeal || allDeals.find(d => {
       const isEntryDeal = d.entry === 'IN' || 
-                          d.entryType === 'DEAL_ENTRY_IN' || 
-                          d.entryType === 0 ||
-                          (d.action && d.action.includes('IN'))
+                          ((d as any).entryType === 'DEAL_ENTRY_IN' || (d as any).entryType === 0) ||
+                          ((d as any).action && (d as any).action.includes('IN'))
       return d.positionId === deal.positionId && 
              isEntryDeal &&
              d.symbol === deal.symbol

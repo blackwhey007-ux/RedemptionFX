@@ -619,9 +619,10 @@ async function checkDuplicates(trades: ParsedTrade[]): Promise<{ existing: strin
     console.log(`Checking batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(ticketIds.length/batchSize)} (${batch.length} tickets)`)
     
     try {
+      const vipProfileId = await getVipProfileId()
       const q = query(
         collection(db, 'trades'),
-        where('profileId', '==', VIP_PROFILE_ID),
+        where('profileId', '==', vipProfileId),
         where('mt5TicketId', 'in', batch)
       )
 
@@ -849,11 +850,8 @@ export async function getVipStats(profileId?: string): Promise<VipStats> {
     
     // Filter for VIP trades (any source) on the client side
     const trades = allTrades.filter(trade => 
-      trade.source === 'MT5_VIP' || 
-      trade.source === 'MANUAL' || 
-      trade.source === 'manual' || 
-      trade.source === 'csv' ||
-      trade.source === 'CSV'
+      trade.source === 'MT5_VIP' ||
+      trade.source === 'MANUAL'
     )
     console.log('Filtered VIP trades count:', trades.length)
     

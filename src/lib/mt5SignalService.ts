@@ -477,9 +477,17 @@ export async function createSignalFromMT5Position(
     await updateMappingWithSignalId(positionId, signalId, positionProfit)
     
     // Return the created signal
+    // Convert Timestamp to Date if needed (using type assertion for compatibility)
+    const signal = {
+      ...createdSignal,
+      createdAt: createdSignal.createdAt instanceof Date ? createdSignal.createdAt : (createdSignal.createdAt as any).toDate?.() || new Date(),
+      updatedAt: createdSignal.updatedAt instanceof Date ? createdSignal.updatedAt : (createdSignal.updatedAt as any).toDate?.() || new Date(),
+      postedAt: createdSignal.postedAt instanceof Date ? createdSignal.postedAt : (createdSignal.postedAt as any).toDate?.() || new Date(),
+    } as Signal
+    
     return {
       signalId,
-      signal: createdSignal as Signal,
+      signal,
       alreadyExists: false
     }
   } catch (error) {

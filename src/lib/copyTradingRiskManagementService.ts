@@ -123,7 +123,7 @@ export async function pauseCopying(
     // Decrypt token if needed
     let token: string | undefined
     if (masterStrategy.tokenEnc) {
-      token = decrypt(masterStrategy.tokenEnc)
+      token = await decrypt(masterStrategy.tokenEnc)
     }
 
     // Unsubscribe from strategy (pause copying)
@@ -223,13 +223,14 @@ export async function resumeCopying(userId: string, accountId: string): Promise<
     // Decrypt token if needed
     let token: string | undefined
     if (masterStrategy.tokenEnc) {
-      token = decrypt(masterStrategy.tokenEnc)
+      token = await decrypt(masterStrategy.tokenEnc)
     }
 
     // Re-subscribe to strategy (resume copying)
     await subscribeToStrategy(
       {
         subscriberAccountId: accountId,
+        providerAccountId: masterStrategy.accountId,
         strategyId: account.strategyId,
         riskMultiplier: account.riskMultiplier,
         reverseTrading: account.reverseTrading || false,

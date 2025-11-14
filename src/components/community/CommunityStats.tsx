@@ -108,8 +108,11 @@ export function CommunityStats({ className = '' }: CommunityStatsProps) {
   ];
 
   // Calculate total activities with explicit type casting
-  const activitiesValues = Object.values(stats.activitiesByType) as number[];
-  const totalActivities = activitiesValues.reduce((sum: number, count: number) => sum + (count || 0), 0);
+  const activitiesValues = Object.values(stats.activitiesByType);
+  const totalActivities = activitiesValues.reduce((sum: number, count: unknown) => {
+    const numCount = typeof count === 'number' ? count : Number(count) || 0;
+    return sum + numCount;
+  }, 0) as number;
 
   return (
     <div className={`space-y-6 ${className}`}>

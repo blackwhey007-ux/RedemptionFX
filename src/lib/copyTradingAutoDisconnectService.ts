@@ -198,12 +198,10 @@ export async function disconnectAccount(
     // Send notification to user
     await UserNotificationService.createNotification({
       userId,
-      type: 'copy-trading-auto-disconnected',
+      type: 'system',
       title: 'Account Auto-Disconnected',
       message: `Your copy trading account has been automatically disconnected due to persistent errors: ${reason}. Please check your account settings and reconnect if needed.`,
       data: {
-        accountId,
-        reason,
         actionUrl: '/dashboard/copy-trading'
       }
     })

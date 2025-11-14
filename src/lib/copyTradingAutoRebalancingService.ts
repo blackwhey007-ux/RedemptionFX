@@ -205,13 +205,14 @@ export async function updateRiskMultiplier(
     // Decrypt token if needed
     let token: string | undefined
     if (masterStrategy.tokenEnc) {
-      token = decrypt(masterStrategy.tokenEnc)
+      token = await decrypt(masterStrategy.tokenEnc)
     }
 
     // Update subscription in CopyFactory
     await subscribeToStrategy(
       {
         subscriberAccountId: accountId,
+        providerAccountId: masterStrategy.accountId,
         strategyId: account.strategyId,
         riskMultiplier: newMultiplier,
         reverseTrading: account.reverseTrading || false,

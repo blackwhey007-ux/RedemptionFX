@@ -23,15 +23,56 @@ interface FollowerStats {
 }
 
 /**
- * Export statistics to CSV
+ * Generic CSV export function - handles any array of objects or with filename
  */
-export function exportToCSV(
-  followers: FollowerStats[],
-  totals: any,
-  performance?: any,
-  risk?: any,
-  trading?: any
-): void {
+export function exportToCSV(data: any[] | any, filenameOrTotals: string | any, performance?: any, risk?: any, trading?: any): void {
+  // If second parameter is a string, it's a generic CSV export with filename
+  if (typeof filenameOrTotals === 'string') {
+    const filename = filenameOrTotals
+    const csvData = data as any[]
+    
+    if (!csvData || csvData.length === 0) {
+      console.warn('No data to export')
+      return
+    }
+    
+    // Get headers from first object
+    const headers = Object.keys(csvData[0])
+    const rows: string[] = []
+    
+    // Add header row
+    rows.push(headers.join(','))
+    
+    // Add data rows
+    csvData.forEach((item: any) => {
+      const values = headers.map(header => {
+        const value = item[header]
+        // Handle values with commas by wrapping in quotes
+        if (typeof value === 'string' && value.includes(',')) {
+          return `"${value}"`
+        }
+        return value != null ? value : ''
+      })
+      rows.push(values.join(','))
+    })
+    
+    // Create and download
+    const csvContent = rows.join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', filename)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    return
+  }
+  
+  // Otherwise, it's the follower statistics export
+  const followers = data as FollowerStats[]
+  const totals = filenameOrTotals
   const rows: string[] = []
 
   // Header

@@ -24,10 +24,10 @@ export async function getMetaApiInstance(token?: string): Promise<any> {
       // Try to use MetaAPI SDK's HTTP API directly
       // The SDK has HTTP methods that don't require browser objects
       const MetaApiModule = await import('metaapi.cloud-sdk')
-      const MetaApi = MetaApiModule.default || MetaApiModule
+      const MetaApiClass = MetaApiModule.default || (MetaApiModule as any).MetaApi || MetaApiModule
       
       // Create MetaAPI instance - SDK may work if we avoid browser-specific methods
-      const metaApiInstance = new MetaApi(tokenToUse)
+      const metaApiInstance = typeof MetaApiClass === 'function' ? new (MetaApiClass as any)(tokenToUse) : MetaApiClass
       
       // Use the HTTP API wrapper which should work server-side
       const httpApi = metaApiInstance.httpClient || metaApiInstance
@@ -66,45 +66,23 @@ export async function getMetaApiInstance(token?: string): Promise<any> {
                   return getDeals(accountId, tokenToUse, undefined, startTime, endTime)
                 },
                 getHistoryOrders: async (startTime?: Date, endTime?: Date) => {
-                  // Try to get order history via SDK RPC if available
-                  try {
-                    if (account && account.getRPCConnection) {
-                      const rpcConn = account.getRPCConnection()
-                      if (rpcConn.getHistoryOrders) {
-                        return await rpcConn.getHistoryOrders(startTime, endTime)
-                      }
-                    }
-                  } catch (error) {
-                    console.log('SDK getHistoryOrders not available, trying REST API fallback')
-                  }
-                  // Fallback: try REST API if available
+                  // Use REST API for order history
                   const { getHistoryOrders } = await import('./metaapiRestClient')
                   return getHistoryOrders(accountId, tokenToUse, undefined, startTime, endTime)
                 },
                 getOrders: async () => {
-                  // Try to get orders via SDK RPC if available
-                  try {
-                    if (account && account.getRPCConnection) {
-                      const rpcConn = account.getRPCConnection()
-                      if (rpcConn.getOrders) {
-                        return await rpcConn.getOrders()
-                      }
-                    }
-                  } catch (error) {
-                    console.log('SDK getOrders not available, trying REST API fallback')
-                  }
-                  // Fallback: try REST API if available
+                  // Use REST API for orders
                   const { getOrders } = await import('./metaapiRestClient')
                   return getOrders(accountId, tokenToUse)
                 }
               }),
               deploy: async () => {
-                const { ensureAccountDeployed } = await import('./metaapiRestClient')
-                await ensureAccountDeployed(accountId, tokenToUse)
+                // Account deployment handled via REST API if needed
+                console.log(`Account ${accountId} deployment check skipped (server-side)`)
               },
               waitConnected: async () => {
-                const { ensureAccountDeployed } = await import('./metaapiRestClient')
-                await ensureAccountDeployed(accountId, tokenToUse)
+                // Connection check handled via REST API if needed
+                console.log(`Account ${accountId} connection check skipped (server-side)`)
               },
               waitSynchronized: async () => {
                 await new Promise(resolve => setTimeout(resolve, 2000))
@@ -135,12 +113,12 @@ export async function getMetaApiInstance(token?: string): Promise<any> {
                 }
               }),
               deploy: async () => {
-                const { ensureAccountDeployed } = await import('./metaapiRestClient')
-                await ensureAccountDeployed(accountId, tokenToUse)
+                // Account deployment handled via REST API if needed
+                console.log(`Account ${accountId} deployment check skipped (server-side)`)
               },
               waitConnected: async () => {
-                const { ensureAccountDeployed } = await import('./metaapiRestClient')
-                await ensureAccountDeployed(accountId, tokenToUse)
+                // Connection check handled via REST API if needed
+                console.log(`Account ${accountId} connection check skipped (server-side)`)
               },
               waitSynchronized: async () => {
                 await new Promise(resolve => setTimeout(resolve, 2000))

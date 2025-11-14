@@ -62,6 +62,10 @@ export async function initializeAchievements(): Promise<void> {
       if (existingSnapshot.empty) {
         const achievement: Omit<Achievement, 'id'> = {
           ...template,
+          requirements: {
+            ...template.requirements,
+            timeframe: (template.requirements?.timeframe as 'monthly' | 'daily' | 'weekly' | 'allTime' | undefined) || 'allTime'
+          } as Achievement['requirements'],
           earnedByCount: 0,
           totalEarned: 0,
           isActive: true,
@@ -73,8 +77,8 @@ export async function initializeAchievements(): Promise<void> {
           updatedAt: Timestamp.now()
         };
         
-        const docRef = doc(collection(db, ACHIEVEMENTS_COLLECTION));
-        batch.set(docRef, achievement);
+        const achievementDocRef = doc(collection(db, ACHIEVEMENTS_COLLECTION));
+        batch.set(achievementDocRef, achievement);
         count++;
       }
     }
@@ -553,15 +557,16 @@ function getDifficultyFromRarity(rarity: AchievementRarity): number {
  */
 export async function getAchievement(achievementId: string): Promise<Achievement | null> {
   try {
-    const doc = await getDoc(doc(db, ACHIEVEMENTS_COLLECTION, achievementId));
+    const achievementDocRef = doc(db, ACHIEVEMENTS_COLLECTION, achievementId);
+    const achievementDoc = await getDoc(achievementDocRef);
     
-    if (!doc.exists()) {
+    if (!achievementDoc.exists()) {
       return null;
     }
     
     return {
-      id: doc.id,
-      ...doc.data()
+      id: achievementDoc.id,
+      ...achievementDoc.data()
     } as Achievement;
   } catch (error) {
     console.error('Error getting achievement:', error);
