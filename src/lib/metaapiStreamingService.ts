@@ -933,6 +933,9 @@ class PositionListener {
  * Initialize MetaAPI streaming connection using SDK Streaming API
  */
 export async function initializeStreaming(): Promise<{ success: boolean; error?: string }> {
+  // Declare accountId at function scope so it's available in catch block
+  let accountId: string | undefined
+  
   try {
     // Don't create duplicate connections
     // Check if existing connection is healthy
@@ -970,7 +973,7 @@ export async function initializeStreaming(): Promise<{ success: boolean; error?:
       return { success: false, error: 'MT5 settings incomplete' }
     }
 
-    const accountId = mt5Settings.accountId
+    accountId = mt5Settings.accountId
     const token = mt5Settings.token || process.env.METAAPI_TOKEN
 
     if (!token) {
