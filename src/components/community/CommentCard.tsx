@@ -21,7 +21,8 @@ import {
   Flag,
   Reply,
   Clock,
-  CheckCircle
+  CheckCircle,
+  Loader2
 } from 'lucide-react';
 import {
   DropdownMenu,
