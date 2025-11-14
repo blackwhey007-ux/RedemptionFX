@@ -8,9 +8,26 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
+// Disable static generation - this page requires client-side context
+export const dynamic = 'force-dynamic'
+
 export default function DebugNotificationsPage() {
   const { user } = useAuth()
-  const { notifications, stats, loading } = useUnifiedNotifications()
+  
+  // Handle provider context gracefully
+  let notifications: any[] = []
+  let stats: any = null
+  let loading = false
+  
+  try {
+    const unifiedNotifications = useUnifiedNotifications()
+    notifications = unifiedNotifications.notifications || []
+    stats = unifiedNotifications.stats || null
+    loading = unifiedNotifications.loading || false
+  } catch (error) {
+    // Provider not available during static generation - will work at runtime
+    console.warn('UnifiedNotificationProvider not available:', error)
+  }
   const unreadCount = stats?.unread || 0
   const [debugInfo, setDebugInfo] = useState<any>({})
 
