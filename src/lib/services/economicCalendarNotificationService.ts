@@ -63,8 +63,7 @@ class EconomicCalendarNotificationServiceImpl implements EconomicCalendarNotific
         data: {
           eventId: event.id,
           actionUrl: `/economic-calendar/${event.id}`
-        },
-        priority: event.impact === 'high' ? 'high' : 'normal'
+        }
       })
 
       console.log(`Created economic calendar notification for event: ${event.event}`)
