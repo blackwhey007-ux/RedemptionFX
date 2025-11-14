@@ -8,24 +8,6 @@
       "path": "/api/cron/trade-alerts-daily-summary",
       "schedule": "0 18 * * *"
     }
-    /* Temporarily disabled for Hobby plan (requires Pro plan for frequent cron jobs):
-    {
-      "path": "/api/cron/mt5-streaming-keeper",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/auto-rebalance",
-      "schedule": "0 */6 * * *"
-    },
-    {
-      "path": "/api/cron/risk-management-check",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/cron/auto-disconnect-check",
-      "schedule": "*/15 * * * *"
-    }
-    */
   ]
 }
 
