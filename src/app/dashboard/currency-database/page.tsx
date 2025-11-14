@@ -188,6 +188,7 @@ export default function CurrencyDatabasePage() {
                   category: 'forex',
                   pipValue: 10,
                   pipPosition: 4,
+                  pipDisplayMultiplier: 1,
                   baseCurrency: '',
                   quoteCurrency: '',
                   description: '',
