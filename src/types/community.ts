@@ -364,7 +364,7 @@ export interface CommunityQueryOptions {
   orderDirection?: 'asc' | 'desc';
   where?: Array<{
     field: string;
-    operator: FirebaseFirestore.WhereFilterOp;
+    operator: '==' | '!=' | '<' | '<=' | '>' | '>=' | 'array-contains' | 'array-contains-any' | 'in' | 'not-in';
     value: any;
   }>;
 }
