@@ -137,7 +137,7 @@ export default function AdminMembersPage() {
       
       // Mark this member as approved FIRST to immediately update notifications
       console.log('Marking member as approved:', uid)
-      markMemberAsApproved(uid)
+      // markMemberAsApproved function removed - role update handles approval
       
       await updateMemberRole(uid, newRole)
       
