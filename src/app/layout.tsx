@@ -13,6 +13,12 @@ export const metadata: Metadata = {
   title: 'RedemptionFX - Professional Forex Trading Signals',
   description: 'Rise from ashes to gold with professional forex and gold trading signals from RedemptionFX.',
   keywords: 'forex signals, gold trading, trading signals, forex analysis, trading community',
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 5,
+    userScalable: true,
+  },
 }
 
 export default function RootLayout({

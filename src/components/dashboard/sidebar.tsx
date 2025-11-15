@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -58,6 +58,31 @@ export function Sidebar({ user }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [expandedItems, setExpandedItems] = useState<string[]>(['dashboard', 'trading'])
   const pathname = usePathname()
+
+  // Lock body scroll when sidebar is open on mobile
+  useEffect(() => {
+    if (isOpen && typeof window !== 'undefined') {
+      // Check if mobile (viewport width < 768px)
+      const isMobile = window.innerWidth < 768
+      if (isMobile) {
+        document.body.style.overflow = 'hidden'
+      }
+    } else {
+      document.body.style.overflow = ''
+    }
+
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isOpen])
+
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsOpen(false)
+    }
+  }, [pathname])
 
   // Show loading state while auth is loading
   if (loading) {
@@ -260,15 +285,16 @@ export function Sidebar({ user }: SidebarProps) {
       <Button
         variant="ghost"
         size="sm"
-        className="md:hidden fixed top-4 left-4 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 shadow-lg"
+        className="md:hidden fixed top-4 left-4 z-[50] bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-gray-200 dark:border-gray-700 shadow-lg min-w-[44px] min-h-[44px] p-3 touch-manipulation"
         onClick={() => setIsOpen(!isOpen)}
+        aria-label={isOpen ? "Close menu" : "Open menu"}
       >
-        {isOpen ? <X className="h-5 w-5 text-slate-900 dark:text-white" /> : <Menu className="h-5 w-5 text-slate-900 dark:text-white" />}
+        {isOpen ? <X className="h-6 w-6 text-slate-900 dark:text-white" /> : <Menu className="h-6 w-6 text-slate-900 dark:text-white" />}
       </Button>
 
       {/* Sidebar */}
       <div className={cn(
-        "fixed inset-y-0 left-0 z-40 bg-gradient-to-b from-white/95 to-slate-50/95 dark:from-black/95 dark:to-black/95 backdrop-blur-xl border-r border-gray-200/50 dark:border-gray-800/50 transform transition-all duration-300 ease-out shadow-2xl",
+        "fixed inset-y-0 left-0 z-[40] bg-gradient-to-b from-white/95 to-slate-50/95 dark:from-black/95 dark:to-black/95 backdrop-blur-xl border-r border-gray-200/50 dark:border-gray-800/50 transform transition-all duration-300 ease-out shadow-2xl",
         // Mobile: always full width when open
         "w-64",
         // Desktop: collapse width based on state
@@ -285,7 +311,7 @@ export function Sidebar({ user }: SidebarProps) {
             <button
               onClick={() => setIsOpen(false)}
               className={cn(
-                "w-full p-3 rounded-lg transition-all duration-300",
+                "w-full min-h-[44px] p-3 rounded-lg transition-all duration-300",
                 "hover:bg-gray-100 dark:hover:bg-gray-800/50",
                 "flex items-center justify-center gap-2",
                 "active:scale-95 touch-manipulation",
@@ -294,7 +320,7 @@ export function Sidebar({ user }: SidebarProps) {
               aria-label="Close sidebar"
               title="Close sidebar"
             >
-              <X className="h-5 w-5 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors" />
+              <X className="h-6 w-6 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors" />
               <span className="text-sm font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors">
                 Close
               </span>
@@ -304,7 +330,7 @@ export function Sidebar({ user }: SidebarProps) {
             <button
               onClick={toggleCollapsed}
               className={cn(
-                "w-full p-3 rounded-lg transition-all duration-300",
+                "w-full min-h-[44px] p-3 rounded-lg transition-all duration-300",
                 "hover:bg-gray-100 dark:hover:bg-gray-800/50",
                 "flex items-center justify-center gap-2",
                 "active:scale-95 touch-manipulation",
@@ -314,10 +340,10 @@ export function Sidebar({ user }: SidebarProps) {
               title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               {isCollapsed ? (
-                <ChevronsRight className="h-5 w-5 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors" />
+                <ChevronsRight className="h-6 w-6 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors" />
               ) : (
                 <>
-                  <ChevronsLeft className="h-5 w-5 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors" />
+                  <ChevronsLeft className="h-6 w-6 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors" />
                   <span className="text-sm font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors">
                     Collapse
                   </span>
@@ -327,7 +353,7 @@ export function Sidebar({ user }: SidebarProps) {
           </div>
 
           {/* Navigation */}
-          <div className="flex-1 p-4 overflow-y-auto">
+          <div className="flex-1 p-2 md:p-4 overflow-y-auto">
             <div className="space-y-2">
               {navigationItems.map((item) => (
                 <div key={item.id} className="space-y-1">
@@ -335,7 +361,7 @@ export function Sidebar({ user }: SidebarProps) {
                   {item.subcategories && item.subcategories.length > 0 ? (
                     <div 
                       className={cn(
-                        "flex items-center px-3 py-3 min-h-[44px] rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 border border-transparent hover:border-gray-200 dark:hover:border-gray-700/50 transition-all duration-300 cursor-pointer group touch-manipulation",
+                        "flex items-center px-3 py-3 min-h-[44px] rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 border border-transparent hover:border-gray-200 dark:hover:border-gray-700/50 transition-all duration-300 cursor-pointer group touch-manipulation active:scale-[0.98]",
                         isCollapsed ? "justify-center md:justify-center" : "justify-between"
                       )}
                       onClick={() => {
@@ -390,7 +416,7 @@ export function Sidebar({ user }: SidebarProps) {
                       }}
                     >
                       <div className={cn(
-                        "flex items-center px-3 py-3 min-h-[44px] rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 border border-transparent hover:border-gray-200 dark:hover:border-gray-700/50 transition-all duration-300 cursor-pointer group touch-manipulation",
+                        "flex items-center px-3 py-3 min-h-[44px] rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 border border-transparent hover:border-gray-200 dark:hover:border-gray-700/50 transition-all duration-300 cursor-pointer group touch-manipulation active:scale-[0.98]",
                         isCollapsed ? "justify-center md:justify-center" : "justify-between"
                       )}
                       title={isCollapsed ? `${item.title} - Click to expand sidebar` : undefined}>
@@ -430,7 +456,7 @@ export function Sidebar({ user }: SidebarProps) {
                               }
                             }}
                             className={cn(
-                              "flex items-center space-x-3 px-3 py-3 min-h-[44px] rounded-lg transition-all duration-300 group touch-manipulation",
+                              "flex items-center space-x-3 px-3 py-3 min-h-[44px] rounded-lg transition-all duration-300 group touch-manipulation active:scale-[0.98]",
                               pathname === sub.href
                                 ? "bg-gray-100 dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700"
                                 : "hover:bg-slate-50 dark:hover:bg-slate-800/50 border border-transparent hover:border-slate-200 dark:hover:border-slate-700/50"
@@ -487,8 +513,9 @@ export function Sidebar({ user }: SidebarProps) {
       {/* Overlay for mobile */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 md:hidden"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[30] md:hidden touch-manipulation"
           onClick={() => setIsOpen(false)}
+          aria-label="Close sidebar"
         />
       )}
     </>

@@ -78,10 +78,10 @@ export function Header({ user }: HeaderProps) {
   const roleBadge = getRoleBadge()
 
   return (
-    <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 px-4 md:px-6 py-3 shadow-sm transition-all duration-300">
+    <header className="sticky top-0 z-30 bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 px-2 md:px-4 lg:px-6 py-2 md:py-3 shadow-sm transition-all duration-300">
       <div className="flex items-center justify-between max-w-full">
-        {/* Logo */}
-        <div className="flex items-center space-x-3">
+        {/* Logo - Add left margin on mobile to avoid menu button */}
+        <div className="flex items-center space-x-2 md:space-x-3 ml-12 md:ml-0">
           <RedemptionLogo size="md" className="text-phoenix-500 dark:text-phoenix-400" />
           <div className="hidden md:block">
             <h1 className="text-lg font-semibold bg-gradient-to-r from-phoenix-600 to-gold-500 bg-clip-text text-transparent">
@@ -91,7 +91,7 @@ export function Header({ user }: HeaderProps) {
         </div>
         
         {/* Right side controls */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 md:space-x-3">
           {/* Theme Toggle */}
           <ThemeToggle />
           
@@ -105,9 +105,9 @@ export function Header({ user }: HeaderProps) {
           {/* Profile Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-10 w-auto px-3">
-                <div className="flex items-center space-x-3">
-                  <Avatar className="h-8 w-8">
+              <Button variant="ghost" className="relative h-9 md:h-10 w-auto px-2 md:px-3 min-h-[44px] min-w-[44px] touch-manipulation">
+                <div className="flex items-center space-x-2 md:space-x-3">
+                  <Avatar className="h-7 w-7 md:h-8 md:w-8">
                     <AvatarImage src={user.photoURL || ''} alt={user.displayName || 'User'} />
                     <AvatarFallback className="bg-gradient-to-r from-red-500 to-orange-500 text-white text-sm font-bold">
                       {user.displayName?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || 'U'}

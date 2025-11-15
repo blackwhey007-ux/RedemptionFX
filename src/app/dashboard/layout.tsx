@@ -37,7 +37,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             isCollapsed ? "md:ml-20" : "md:ml-64" // Desktop margin based on collapsed state
           )}>
             <Header user={user} />
-            <main className="flex-1 p-4 md:p-6">
+            <main className="flex-1 p-2 md:p-4 lg:p-6">
               {children}
             </main>
           </div>
